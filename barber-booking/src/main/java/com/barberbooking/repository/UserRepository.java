@@ -1,6 +1,6 @@
 package com.barberbooking.repository;
 
-import com.barberbooking.controller.model.User;
+import com.barberbooking.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
