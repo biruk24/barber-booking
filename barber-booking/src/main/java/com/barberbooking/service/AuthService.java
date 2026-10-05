@@ -1,10 +1,11 @@
 package com.barberbooking.service;
 
+import com.barberbooking.dto.LoginRequest;
+import com.barberbooking.dto.LoginResponse;
 import com.barberbooking.model.User;
 import com.barberbooking.dto.RegisterRequest;
 import com.barberbooking.dto.RegisterResponse;
 import com.barberbooking.repository.UserRepository;
-import org.springframework.cglib.core.Local;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -15,11 +16,13 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
     public AuthService(
             UserRepository userRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder, JwtService jwtService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
     }
     public RegisterResponse register(RegisterRequest request){
         if(userRepository.existsByEmail(request.getEmail())){
@@ -53,6 +56,33 @@ public class AuthService {
 
 
 
+    }
+    public LoginResponse login(LoginRequest request){
+        User user = userRepository.findByEmail(request.getEmail())
+                .orElseThrow(() ->
+                        new IllegalArgumentException("Invalid email or password")
+                );
+        boolean passwordMatches =
+                passwordEncoder.matches(
+                        request.getPassword(),
+                        user.getPassword()
+                );
+        if (!passwordMatches){
+            throw new IllegalArgumentException("Invalid email or password");
+        }
+        String token = jwtService.generateToken(
+                user.getId(),
+                user.getEmail(),
+                user.getRole()
+
+        );
+        return new LoginResponse(
+                user.getId(),
+                user.getName(),
+                user.getEmail(),
+                user.getRole(),
+                token
+        );
     }
 
 }
