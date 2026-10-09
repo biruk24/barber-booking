@@ -31,5 +31,5 @@ public class WorkingHour {
     private LocalTime closingTime;
 
     @Column(name = "is_closed", nullable = false)
-    private Boolean isClosed = false;
+    private Boolean closed = false;
 }

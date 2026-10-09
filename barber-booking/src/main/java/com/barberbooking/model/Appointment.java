@@ -6,6 +6,7 @@ import lombok.Setter;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 @Entity @Table(name = "appointments")
 @Getter
 @Setter
@@ -48,4 +49,6 @@ public class Appointment {
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
+    @Column(name = "total_price", nullable = false, precision = 10, scale = 2)
+    private BigDecimal totalPrice = BigDecimal.ZERO;
 }
