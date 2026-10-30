@@ -22,7 +22,7 @@ public class ShopRequest {
     @Size(max = 20, message = "Phone must not exceed 20 characters")
     private String phone;
 
-    @Size(max = 255, message = "Address must not exceed 150 characters")
+    @Size(max = 255, message = "Address must not exceed 80 characters")
     private String address;
 
 

@@ -18,7 +18,7 @@ public class ServiceRequest {
     @Size(max = 1000)
     private String description;
 
-    @NotNull(message = "Duration is requred")
+    @NotNull(message = "Duration is required")
     @Positive(message = "Duration must be greater than 0")
     private Integer durationMinutes;
 
