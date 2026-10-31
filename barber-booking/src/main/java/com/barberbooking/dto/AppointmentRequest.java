@@ -1,8 +1,8 @@
 package com.barberbooking.dto;
 
+import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 @Getter
@@ -26,34 +27,26 @@ public class AppointmentRequest {
     @NotBlank(message = "Customer phone is required")
     @Pattern(
             regexp = "^(09\\d{8}|07\\d{8}|\\+251[79]\\d{8})$",
-            message = "Enter a valid Ethiopian phone number, for example 0912345678 or +251912345678"
+            message = "Enter a valid Ethiopian phone number"
     )
     private String customerPhone;
 
     @NotNull(message = "Appointment date is required")
+    @FutureOrPresent(message = "Appointment date cannot be in the past")
     private LocalDate appointmentDate;
 
-    @NotBlank(message = "Start time is required")
-    @Pattern(
-            regexp = "^([01]\\d|2[0-3]):[0-5]\\d$",
-            message = "Start time must use HH:mm format, for example 09:30"
-    )
-    private String startTime;
+    @NotNull(message = "Start time is required")
+    private LocalTime startTime;
 
-    @NotEmpty(message = "Select at least one service")
-    private List<
-            @NotNull(message = "Service ID cannot be null")
-            @Min(value = 1, message = "Service ID must be positive")
-                    Long
-            > serviceIds;
-
-    @NotNull(message = "Adult count is required")
     @Min(value = 0, message = "Adult count cannot be negative")
-    private Integer adultCount = 1;
+    private int adultCount = 1;
 
-    @NotNull(message = "Child count is required")
     @Min(value = 0, message = "Child count cannot be negative")
-    private Integer childCount = 0;
+    private int childCount = 0;
+
+    private List<@NotNull(message = "Adult service ID cannot be null") @Min(1) Long> adultServiceIds;
+
+    private List<@NotNull(message = "Child service ID cannot be null") @Min(1) Long> childServiceIds;
 
 
 }

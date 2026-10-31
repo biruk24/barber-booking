@@ -23,12 +23,19 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 @org.springframework.stereotype.Service
 public class AppointmentBookingService {
+
+    private static final BigDecimal ADULT_COMBO_PRICE =
+            new BigDecimal("700.00");
+
+    private static final String ADULT = "ADULT";
+    private static final String CHILD = "CHILD";
 
     private final AppointmentRepository appointmentRepository;
     private final AppointmentServiceRepository appointmentServiceRepository;
@@ -69,12 +76,10 @@ public class AppointmentBookingService {
                     "Appointment request is required");
         }
 
-        // Lock the shop row while checking and creating a booking.
         BarberShop shop = barberShopRepository.findByIdForUpdate(shopId)
                 .orElseThrow(() ->
                         new IllegalArgumentException("Shop not found"));
 
-        // Validate appointment date.
         LocalDate date = request.getAppointmentDate();
 
         if (date == null) {
@@ -87,17 +92,8 @@ public class AppointmentBookingService {
                     "Appointment date cannot be in the past");
         }
 
-        // Validate customer counts.
-        Integer requestedAdults = request.getAdultCount();
-        Integer requestedChildren = request.getChildCount();
-
-        if (requestedAdults == null || requestedChildren == null) {
-            throw new IllegalArgumentException(
-                    "Adult and child counts are required");
-        }
-
-        int adults = requestedAdults;
-        int children = requestedChildren;
+        int adults = request.getAdultCount();
+        int children = request.getChildCount();
 
         if (adults < 0 || children < 0) {
             throw new IllegalArgumentException(
@@ -109,7 +105,6 @@ public class AppointmentBookingService {
                     "At least one adult or child is required");
         }
 
-        // Validate customer details.
         if (request.getCustomerName() == null
                 || request.getCustomerName().isBlank()) {
             throw new IllegalArgumentException(
@@ -122,28 +117,61 @@ public class AppointmentBookingService {
                     "Customer phone is required");
         }
 
-        // Validate selected service IDs.
-        List<Long> serviceIds = request.getServiceIds();
+        // Get separate adult and child service selections.
 
-        if (serviceIds == null || serviceIds.isEmpty()) {
+        List<Long> adultServiceIds =
+                request.getAdultServiceIds() == null
+                        ? new ArrayList<>()
+                        : request.getAdultServiceIds();
+
+        List<Long> childServiceIds =
+                request.getChildServiceIds() == null
+                        ? new ArrayList<>()
+                        : request.getChildServiceIds();
+
+        if (adults > 0 && adultServiceIds.isEmpty()) {
             throw new IllegalArgumentException(
-                    "Select at least one service");
+                    "Select at least one service for adults");
         }
 
-        if (serviceIds.stream().anyMatch(
-                id -> id == null || id <= 0)) {
+        if (children > 0 && childServiceIds.isEmpty()) {
             throw new IllegalArgumentException(
-                    "Service IDs must be valid positive numbers");
+                    "Select at least one service for children");
         }
 
-        Set<Long> uniqueServiceIds = new HashSet<>(serviceIds);
-
-        if (uniqueServiceIds.size() != serviceIds.size()) {
+        if (adults == 0 && !adultServiceIds.isEmpty()) {
             throw new IllegalArgumentException(
-                    "Do not select the same service more than once");
+                    "Adult services cannot be selected when adult count is zero");
         }
 
-        // Load services and verify that every requested ID exists.
+        if (children == 0 && !childServiceIds.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Child services cannot be selected when child count is zero");
+        }
+
+        validateServiceIds(adultServiceIds);
+        validateServiceIds(childServiceIds);
+
+        if (new HashSet<>(adultServiceIds).size()
+                != adultServiceIds.size()) {
+            throw new IllegalArgumentException(
+                    "An adult service cannot be selected more than once");
+        }
+
+        if (new HashSet<>(childServiceIds).size()
+                != childServiceIds.size()) {
+            throw new IllegalArgumentException(
+                    "A child service cannot be selected more than once");
+        }
+
+        // Load all unique services.
+
+        Set<Long> allServiceIds = new HashSet<>();
+        allServiceIds.addAll(adultServiceIds);
+        allServiceIds.addAll(childServiceIds);
+
+        List<Long> serviceIds = new ArrayList<>(allServiceIds);
+
         List<Service> services =
                 serviceRepository.findAllById(serviceIds);
 
@@ -152,27 +180,26 @@ public class AppointmentBookingService {
                     "One or more selected services do not exist");
         }
 
-        // =====================================================
-        // CRITICAL SECURITY VALIDATION:
-        // A customer booking Shop A cannot use Shop B's service.
-        // This check runs before an appointment is saved.
-        // =====================================================
+        // Build service lookup map.
+
+        java.util.Map<Long, Service> serviceMap =
+                new java.util.HashMap<>();
+
+        for (Service service : services) {
+            serviceMap.put(service.getId(), service);
+        }
+
+        // Verify every service belongs to the requested shop.
 
         for (Service service : services) {
 
-            if (service.getBarberShop() == null) {
-                throw new IllegalArgumentException(
-                        "A selected service has no associated shop");
-            }
-
-            Long serviceShopId = service.getBarberShop().getId();
-
-            if (serviceShopId == null) {
+            if (service.getBarberShop() == null
+                    || service.getBarberShop().getId() == null) {
                 throw new IllegalArgumentException(
                         "A selected service has an invalid shop");
             }
 
-            if (!shopId.equals(serviceShopId)) {
+            if (!shopId.equals(service.getBarberShop().getId())) {
                 throw new IllegalArgumentException(
                         "Service ID " + service.getId()
                                 + " does not belong to shop ID "
@@ -180,66 +207,132 @@ public class AppointmentBookingService {
             }
         }
 
-        // Calculate appointment duration.
-        int totalPeople = adults + children;
+        // Validate adult services.
 
-        int durationMinutes = services.stream()
-                .mapToInt(Service::getDurationMinutes)
-                .sum() * totalPeople;
+        boolean adultHasHaircut = false;
+        boolean adultHasBeardTrim = false;
 
-        if (durationMinutes <= 0) {
-            throw new IllegalArgumentException(
-                    "The total appointment duration must be greater than zero");
+        int adultDurationPerPerson = 0;
+
+        for (Long id : adultServiceIds) {
+
+            Service service = serviceMap.get(id);
+
+            String serviceName = normalizeName(service.getName());
+
+            if ("haircut".equals(serviceName)) {
+                adultHasHaircut = true;
+            } else if ("beard trim".equals(serviceName)) {
+                adultHasBeardTrim = true;
+            } else {
+                throw new IllegalArgumentException(
+                        "This service is not available for adults: "
+                                + service.getName());
+            }
+
+            adultDurationPerPerson += validateDuration(service);
         }
 
-        // Calculate total price.
+        // Validate child services. Children can select Haircut only.
+
+        int childDurationPerPerson = 0;
+
+        for (Long id : childServiceIds) {
+
+            Service service = serviceMap.get(id);
+
+            String serviceName = normalizeName(service.getName());
+
+            if (!"haircut".equals(serviceName)) {
+                throw new IllegalArgumentException(
+                        "Children can only select Haircut");
+            }
+
+            childDurationPerPerson += validateDuration(service);
+        }
+
+        // Calculate total appointment duration.
+
+        long durationMinutes =
+                ((long) adultDurationPerPerson * adults)
+                        + ((long) childDurationPerPerson * children);
+
+        if (durationMinutes <= 0
+                || durationMinutes > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                    "Invalid appointment duration");
+        }
+
+        // Calculate adult price.
+
         BigDecimal totalPrice = BigDecimal.ZERO;
 
-        for (Service service : services) {
+        if (adults > 0) {
 
-            BigDecimal adultPrice = service.getAdultPrice();
+            BigDecimal adultPricePerPerson;
 
-            if (adultPrice == null || adultPrice.signum() < 0) {
-                throw new IllegalStateException(
-                        "A selected service has an invalid adult price");
+            if (adultHasHaircut && adultHasBeardTrim) {
+
+                adultPricePerPerson = ADULT_COMBO_PRICE;
+
+            } else {
+
+                adultPricePerPerson = BigDecimal.ZERO;
+
+                for (Long id : adultServiceIds) {
+
+                    Service service = serviceMap.get(id);
+                    BigDecimal price = service.getAdultPrice();
+
+                    if (price == null || price.signum() < 0) {
+                        throw new IllegalStateException(
+                                "Invalid adult price for service: "
+                                        + service.getName());
+                    }
+
+                    adultPricePerPerson =
+                            adultPricePerPerson.add(price);
+                }
             }
 
-            BigDecimal childPrice = service.getChildPrice() != null
-                    ? service.getChildPrice()
-                    : adultPrice;
-
-            if (childPrice.signum() < 0) {
-                throw new IllegalStateException(
-                        "A selected service has an invalid child price");
-            }
-
-            BigDecimal adultCost = adultPrice.multiply(
-                    BigDecimal.valueOf(adults));
-
-            BigDecimal childCost = childPrice.multiply(
-                    BigDecimal.valueOf(children));
-
-            totalPrice = totalPrice
-                    .add(adultCost)
-                    .add(childCost);
+            totalPrice = totalPrice.add(
+                    adultPricePerPerson.multiply(
+                            BigDecimal.valueOf(adults)));
         }
 
-        // Validate and parse start time.
-        String requestedStartTime = request.getStartTime();
+        // Calculate child price.
 
-        if (requestedStartTime == null
-                || requestedStartTime.isBlank()) {
+        if (children > 0) {
+
+            BigDecimal childPricePerPerson = BigDecimal.ZERO;
+
+            for (Long id : childServiceIds) {
+
+                Service service = serviceMap.get(id);
+                BigDecimal price = service.getChildPrice();
+
+                if (price == null || price.signum() < 0) {
+                    throw new IllegalStateException(
+                            "Invalid child price for service: "
+                                    + service.getName());
+                }
+
+                childPricePerPerson =
+                        childPricePerPerson.add(price);
+            }
+
+            totalPrice = totalPrice.add(
+                    childPricePerPerson.multiply(
+                            BigDecimal.valueOf(children)));
+        }
+
+        // Validate start time.
+
+        LocalTime startTime = request.getStartTime();
+
+        if (startTime == null) {
             throw new IllegalArgumentException(
                     "Appointment start time is required");
-        }
-
-        LocalTime startTime;
-
-        try {
-            startTime = LocalTime.parse(requestedStartTime);
-        } catch (Exception exception) {
-            throw new IllegalArgumentException(
-                    "Invalid start time. Use HH:mm, for example 09:30");
         }
 
         if (startTime.getSecond() != 0
@@ -250,14 +343,14 @@ public class AppointmentBookingService {
 
         LocalTime endTime = startTime.plusMinutes(durationMinutes);
 
-        // Reject appointment times that have already passed.
         if (date.equals(LocalDate.now())
                 && !startTime.isAfter(LocalTime.now())) {
             throw new IllegalArgumentException(
                     "Appointment start time must be in the future");
         }
 
-        // Check shop working hours.
+        // Validate shop working hours.
+
         DayOfWeek dayOfWeek = date.getDayOfWeek();
 
         WorkingHour hours = workingHourRepository
@@ -294,7 +387,6 @@ public class AppointmentBookingService {
                     "Appointment must fit within the shop's working hours");
         }
 
-        // Slots are offered every 30 minutes from opening time.
         long minutesFromOpening =
                 ChronoUnit.MINUTES.between(openingTime, startTime);
 
@@ -304,6 +396,7 @@ public class AppointmentBookingService {
         }
 
         // Prevent overlapping appointments.
+
         List<Appointment> existingAppointments =
                 appointmentRepository
                         .findByBarberShopIdAndAppointmentDateAndStatusNot(
@@ -324,14 +417,13 @@ public class AppointmentBookingService {
             }
         }
 
-        // Create appointment only after all validations pass.
+        // Create appointment.
+
         Appointment appointment = new Appointment();
 
         appointment.setBarberShop(shop);
-        appointment.setCustomerName(
-                request.getCustomerName().trim());
-        appointment.setCustomerPhone(
-                request.getCustomerPhone().trim());
+        appointment.setCustomerName(request.getCustomerName().trim());
+        appointment.setCustomerPhone(request.getCustomerPhone().trim());
         appointment.setAppointmentDate(date);
         appointment.setStartTime(startTime);
         appointment.setEndTime(endTime);
@@ -347,22 +439,94 @@ public class AppointmentBookingService {
 
         Appointment saved = appointmentRepository.save(appointment);
 
-        // Save the appointment-service relationships.
-        for (Service service : services) {
+        // Save adult service relationships.
 
-            AppointmentService link = new AppointmentService();
-
-            link.setId(new AppointmentServiceId(
-                    saved.getId(),
-                    service.getId()));
-
-            link.setAppointment(saved);
-            link.setService(service);
-
-            appointmentServiceRepository.save(link);
+        for (Long id : adultServiceIds) {
+            saveAppointmentService(
+                    saved,
+                    serviceMap.get(id),
+                    ADULT
+            );
         }
 
-        return toResponse(saved, serviceIds);
+        // Save child service relationships.
+
+        for (Long id : childServiceIds) {
+            saveAppointmentService(
+                    saved,
+                    serviceMap.get(id),
+                    CHILD
+            );
+        }
+
+        return toResponse(saved);
+    }
+
+    // =========================================================
+    // VALIDATE SERVICE IDS
+    // =========================================================
+
+    private void validateServiceIds(List<Long> serviceIds) {
+
+        if (serviceIds.stream().anyMatch(
+                id -> id == null || id <= 0)) {
+            throw new IllegalArgumentException(
+                    "Service IDs must be valid positive numbers");
+        }
+    }
+
+    // =========================================================
+    // NORMALIZE SERVICE NAME
+    // =========================================================
+
+    private String normalizeName(String name) {
+
+        if (name == null) {
+            return "";
+        }
+
+        return name.trim().toLowerCase();
+    }
+
+    // =========================================================
+    // VALIDATE SERVICE DURATION
+    // =========================================================
+
+    private int validateDuration(Service service) {
+
+        Integer duration = service.getDurationMinutes();
+
+        if (duration == null || duration <= 0) {
+            throw new IllegalArgumentException(
+                    "Invalid duration for service: "
+                            + service.getName());
+        }
+
+        return duration;
+    }
+
+    // =========================================================
+    // SAVE APPOINTMENT-SERVICE RELATIONSHIP
+    // =========================================================
+
+    private void saveAppointmentService(
+            Appointment appointment,
+            Service service,
+            String customerType
+    ) {
+
+        AppointmentService link = new AppointmentService();
+
+        link.setId(new AppointmentServiceId(
+                appointment.getId(),
+                service.getId(),
+                customerType
+        ));
+
+        link.setAppointment(appointment);
+        link.setService(service);
+
+        appointmentServiceRepository.save(link);
     }
 
     // =========================================================
@@ -381,10 +545,7 @@ public class AppointmentBookingService {
                                 shopId);
 
         return appointments.stream()
-                .map(appointment ->
-                        toResponse(
-                                appointment,
-                                getServiceIds(appointment.getId())))
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -417,9 +578,7 @@ public class AppointmentBookingService {
 
         Appointment saved = appointmentRepository.save(appointment);
 
-        return toResponse(
-                saved,
-                getServiceIds(saved.getId()));
+        return toResponse(saved);
     }
 
     // =========================================================
@@ -435,9 +594,7 @@ public class AppointmentBookingService {
                 shopId,
                 appointmentId);
 
-        return toResponse(
-                appointment,
-                getServiceIds(appointment.getId()));
+        return toResponse(appointment);
     }
 
     // =========================================================
@@ -463,10 +620,7 @@ public class AppointmentBookingService {
                         shopId,
                         phone.trim())
                 .stream()
-                .map(appointment ->
-                        toResponse(
-                                appointment,
-                                getServiceIds(appointment.getId())))
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -494,9 +648,7 @@ public class AppointmentBookingService {
 
         Appointment saved = appointmentRepository.save(appointment);
 
-        return toResponse(
-                saved,
-                getServiceIds(saved.getId()));
+        return toResponse(saved);
     }
 
     // =========================================================
@@ -523,9 +675,7 @@ public class AppointmentBookingService {
 
         Appointment saved = appointmentRepository.save(appointment);
 
-        return toResponse(
-                saved,
-                getServiceIds(saved.getId()));
+        return toResponse(saved);
     }
 
     // =========================================================
@@ -545,26 +695,28 @@ public class AppointmentBookingService {
     }
 
     // =========================================================
-    // 9. GET SERVICE IDS FOR ONE APPOINTMENT
+    // 9. CONVERT APPOINTMENT ENTITY TO RESPONSE DTO
     // =========================================================
 
-    private List<Long> getServiceIds(Long appointmentId) {
+    private AppointmentResponse toResponse(Appointment appointment) {
 
-        return appointmentServiceRepository
-                .findByAppointment_Id(appointmentId)
-                .stream()
+        List<AppointmentService> links =
+                appointmentServiceRepository
+                        .findByAppointment_Id(appointment.getId());
+
+        List<Long> adultServiceIds = links.stream()
+                .filter(link -> link.getId() != null
+                        && ADULT.equals(link.getId().getCustomerType()))
                 .map(link -> link.getService().getId())
+                .distinct()
                 .toList();
-    }
 
-    // =========================================================
-    // 10. CONVERT APPOINTMENT ENTITY TO RESPONSE DTO
-    // =========================================================
-
-    private AppointmentResponse toResponse(
-            Appointment appointment,
-            List<Long> serviceIds
-    ) {
+        List<Long> childServiceIds = links.stream()
+                .filter(link -> link.getId() != null
+                        && CHILD.equals(link.getId().getCustomerType()))
+                .map(link -> link.getService().getId())
+                .distinct()
+                .toList();
 
         return new AppointmentResponse(
                 appointment.getId(),
@@ -578,7 +730,9 @@ public class AppointmentBookingService {
                 appointment.getChildCount(),
                 appointment.getStatus(),
                 appointment.getTotalPrice(),
-                serviceIds
+                adultServiceIds,
+                childServiceIds
         );
     }
 }
+

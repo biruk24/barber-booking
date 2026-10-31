@@ -10,6 +10,7 @@ import java.util.List;
 @Getter
 @AllArgsConstructor
 public class AppointmentResponse {
+
     private Long id;
     private Long shopId;
     private String customerName;
@@ -21,6 +22,7 @@ public class AppointmentResponse {
     private Integer childCount;
     private String status;
     private BigDecimal totalPrice;
-    private List<Long> serviceIds;
 
+    private List<Long> adultServiceIds;
+    private List<Long> childServiceIds;
 }
