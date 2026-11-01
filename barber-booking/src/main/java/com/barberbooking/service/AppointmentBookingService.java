@@ -57,9 +57,9 @@ public class AppointmentBookingService {
         this.workingHourRepository = workingHourRepository;
     }
 
-    // =========================================================
-    // 1. BOOK AN APPOINTMENT
-    // =========================================================
+
+    // BOOK AN APPOINTMENT
+
 
     @Transactional
     public AppointmentResponse book(
@@ -462,9 +462,9 @@ public class AppointmentBookingService {
         return toResponse(saved);
     }
 
-    // =========================================================
+
     // VALIDATE SERVICE IDS
-    // =========================================================
+
 
     private void validateServiceIds(List<Long> serviceIds) {
 
@@ -475,9 +475,9 @@ public class AppointmentBookingService {
         }
     }
 
-    // =========================================================
+
     // NORMALIZE SERVICE NAME
-    // =========================================================
+
 
     private String normalizeName(String name) {
 
@@ -488,9 +488,9 @@ public class AppointmentBookingService {
         return name.trim().toLowerCase();
     }
 
-    // =========================================================
+
     // VALIDATE SERVICE DURATION
-    // =========================================================
+
 
     private int validateDuration(Service service) {
 
@@ -505,9 +505,9 @@ public class AppointmentBookingService {
         return duration;
     }
 
-    // =========================================================
+
     // SAVE APPOINTMENT-SERVICE RELATIONSHIP
-    // =========================================================
+
 
     private void saveAppointmentService(
             Appointment appointment,
@@ -529,9 +529,9 @@ public class AppointmentBookingService {
         appointmentServiceRepository.save(link);
     }
 
-    // =========================================================
+
     // 2. GET ALL APPOINTMENTS FOR A SHOP
-    // =========================================================
+
 
     public List<AppointmentResponse> getAppointments(Long shopId) {
 
@@ -549,9 +549,9 @@ public class AppointmentBookingService {
                 .toList();
     }
 
-    // =========================================================
+
     // 3. CANCEL AN APPOINTMENT
-    // =========================================================
+
 
     @Transactional
     public AppointmentResponse cancel(
@@ -581,9 +581,9 @@ public class AppointmentBookingService {
         return toResponse(saved);
     }
 
-    // =========================================================
+
     // 4. GET ONE APPOINTMENT
-    // =========================================================
+
 
     public AppointmentResponse getAppointment(
             Long shopId,
@@ -597,9 +597,9 @@ public class AppointmentBookingService {
         return toResponse(appointment);
     }
 
-    // =========================================================
+
     // 5. GET APPOINTMENTS BY CUSTOMER PHONE
-    // =========================================================
+
 
     public List<AppointmentResponse> getCustomerAppointments(
             Long shopId,
@@ -624,9 +624,9 @@ public class AppointmentBookingService {
                 .toList();
     }
 
-    // =========================================================
+
     // 6. CONFIRM AN APPOINTMENT
-    // =========================================================
+
 
     @Transactional
     public AppointmentResponse confirm(
@@ -651,9 +651,9 @@ public class AppointmentBookingService {
         return toResponse(saved);
     }
 
-    // =========================================================
+
     // 7. COMPLETE AN APPOINTMENT
-    // =========================================================
+
 
     @Transactional
     public AppointmentResponse complete(
@@ -678,9 +678,9 @@ public class AppointmentBookingService {
         return toResponse(saved);
     }
 
-    // =========================================================
+
     // 8. FIND AN APPOINTMENT BELONGING TO A SHOP
-    // =========================================================
+
 
     private Appointment getAppointmentEntity(
             Long shopId,
@@ -694,9 +694,9 @@ public class AppointmentBookingService {
                                 "Appointment not found"));
     }
 
-    // =========================================================
+
     // 9. CONVERT APPOINTMENT ENTITY TO RESPONSE DTO
-    // =========================================================
+
 
     private AppointmentResponse toResponse(Appointment appointment) {
 

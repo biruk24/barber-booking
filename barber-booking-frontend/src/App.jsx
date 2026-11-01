@@ -1,301 +1,574 @@
-
-
-
-import React, { usEffect, useState } from "react";
-import "./App.css";
+import { useEffect, useState } from "react";
 import Booking from "./Booking";
-import { getShopServices } from "./api";
+import Login from "./Login";
+import BarberDashboard from "./BarberDashboard";
+
+import {
+  getShop,
+  getShopServices,
+} from "./api";
+
+import "./App.css";
 
 const SHOP_ID = 1;
 
 function App() {
+  const [shop, setShop] = useState(null);
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [serviceError, setServiceError] = useState("");
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    getShopServices(SHOP_ID)
-      .then((data) => setServices(Array.isArray(data) ? data : []))
-      .catch(() => setServiceError("Unable to load services right now."))
-      .finally(() => setLoading(false));
-  }, []);
 
-  const haircut = services.find(
-    (service) => service.name?.trim().toLowerCase() === "haircut"
-  );
+const [currentPath, setCurrentPath] = useState(
+    window.location.pathname
+);
 
-  const beardTrim = services.find(
-    (service) => service.name?.trim().toLowerCase() === "beard trim"
-  );
+const [barberUser, setBarberUser] = useState(() => {
+    try {
+        const savedUser = localStorage.getItem("barberUser");
+        return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+        return null;
+    }
+});
 
-  const bookingServices = { haircut, beardTrim };
+// Handle browser back and forward buttons.
+useEffect(() => {
+    const handlePopState = () => {
+        setCurrentPath(window.location.pathname);
+    };
 
-  const scrollToBooking = () => {
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+        window.removeEventListener("popstate", handlePopState);
+    };
+}, []);
+
+// Navigate between pages without reloading.
+function navigate(path) {
+    window.history.pushState({}, "", path);
+    setCurrentPath(path);
+    window.scrollTo(0, 0);
+}
+
+// Handle successful barber login.
+function handleLogin(response) {
+    const user = {
+        id: response.id,
+        name: response.name,
+        email: response.email,
+        role: response.role,
+    };
+
+    setBarberUser(user);
+    localStorage.setItem("barberUser", JSON.stringify(user));
+
+    navigate("/barber/dashboard");
+}
+
+// Handle barber logout.
+function handleLogout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("barberUser");
+
+    setBarberUser(null);
+    navigate("/");
+}
+
+// Protect the barber dashboard.
+useEffect(() => {
+    if (
+        currentPath === "/barber/dashboard" &&
+        (!localStorage.getItem("token") || !barberUser)
+    ) {
+        navigate("/barber/login");
+    }
+}, [currentPath, barberUser]);
+
+// Load public shop information.
+useEffect(() => {
+    async function loadData() {
+        try {
+            const [shopData, serviceData] = await Promise.all([
+                getShop(SHOP_ID),
+                getShopServices(SHOP_ID),
+            ]);
+
+            setShop(shopData);
+
+            setServices(
+                Array.isArray(serviceData) ? serviceData : []
+            );
+        } catch (err) {
+            console.error("Failed to load shop:", err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    loadData();
+}, []);
+
+// Find haircut service.
+const haircut = services.find(
+    (service) =>
+        service.name?.trim().toLowerCase() === "haircut"
+);
+
+// Find beard trim service.
+const beardTrim = services.find(
+    (service) =>
+        service.name?.trim().toLowerCase() === "beard trim"
+);
+
+// Scroll to booking section.
+const scrollToBooking = () => {
     document.getElementById("booking")?.scrollIntoView({
-      behavior: "smooth",
+        behavior: "smooth",
     });
-    setMenuOpen(false);
-  };
+};
 
-  const scrollTo = (id) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-    setMenuOpen(false);
-  };
+// =====================================================
+// BARBER LOGIN PAGE
+// =====================================================
 
-  return (
-    <div className="site">
-      <header className="navbar">
-        <a className="brand" href="#home" aria-label="Kings home">
-          <span className="brand-mark">K</span>
-          <span className="brand-name">
-            KINGS<span>BARBER</span>
-          </span>
-        </a>
+if (currentPath === "/barber/login") {
+    return (
+        <Login onLogin={handleLogin} />
+    );
+}
 
-        <button
-          className="menu-toggle"
-          onClick={() => setMenuOpen(!menuOpen)}
-          aria-label="Toggle navigation"
-          aria-expanded={menuOpen}
-        >
-          <span></span>
-          <span></span>
-        </button>
+// =====================================================
+// BARBER DASHBOARD
+// =====================================================
 
-        <nav className={menuOpen ? "nav-links open" : "nav-links"}>
-          <button onClick={() => scrollTo("home")}>Home</button>
-          <button onClick={() => scrollTo("services")}>Services</button>
-          <button onClick={() => scrollTo("about")}>Our Story</button>
-          <button onClick={() => scrollTo("contact")}>Contact</button>
-          <button className="nav-book" onClick={scrollToBooking}>
-            Book a Visit <span>↗</span>
-          </button>
-        </nav>
-      </header>
+if (currentPath === "/barber/dashboard") {
+    if (!barberUser || !localStorage.getItem("token")) {
+        return null;
+    }
 
-      <main>
-        <section className="hero" id="home">
-          <div className="hero-image"></div>
-          <div className="hero-overlay"></div>
+    return (
+        <BarberDashboard
+            barberUser={barberUser}
+            onLogout={handleLogout}
+        />
+    );
+}
 
-          <div className="hero-content">
-            <p className="eyebrow">
-              <span></span> THE ART OF GROOMING
-            </p>
+// =====================================================
+// PUBLIC WEBSITE LOADING
+// =====================================================
 
-            <h1>
-              OWN YOUR
-              <br />
-              <em>LOOK.</em>
-            </h1>
+if (loading) {
+    return (
+        <div className="loading-screen">
+            <div className="loader"></div>
+            <p>Preparing your experience...</p>
+        </div>
+    );
+}
 
-            <p className="hero-description">
-              Precision cuts. Timeless style. A grooming experience designed
-              around you.
-            </p>
+if (error) {
+    return (
+        <div className="error-screen">
+            <h2>Unable to load the shop</h2>
+            <p>{error}</p>
 
-            <div className="hero-actions">
-              <button className="button-primary" onClick={scrollToBooking}>
-                BOOK YOUR APPOINTMENT <span>↗</span>
-              </button>
-              <button
-                className="button-text"
-                onClick={() => scrollTo("services")}
-              >
-                EXPLORE SERVICES <span>↓</span>
-              </button>
-            </div>
-          </div>
+            <button onClick={() => window.location.reload()}>
+                Try Again
+            </button>
+        </div>
+    );
+}
 
-          <div className="hero-bottom">
-            <span>EST. FOR THE MODERN GENTLEMAN</span>
-            <span>ADDIS ABABA · ETHIOPIA</span>
-          </div>
+// =====================================================
+// PUBLIC CUSTOMER WEBSITE
+// =====================================================
 
-          <div className="hero-number">01 / 04</div>
-        </section>
+return (
+    <div className="website">
 
-        <section className="intro-section">
-          <div className="intro-label">MORE THAN A HAIRCUT</div>
-          <div className="intro-copy">
-            <h2>
-              Style is personal.
-              <br />
-              <span>Make it unforgettable.</span>
-            </h2>
-            <p>
-              At Kings Barber, every detail matters. From the first consultation
-              to the final touch, we bring together craftsmanship, confidence,
-              and a little luxury.
-            </p>
-          </div>
-        </section>
+        <header className="navbar">
 
-        <section className="services-section" id="services">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow dark-eyebrow">THE KINGS EXPERIENCE</p>
-              <h2>Our Services<span>.</span></h2>
-            </div>
-            <p className="section-note">
-              The essentials, perfected.
-              <br />
-              No shortcuts. Just great work.
-            </p>
-          </div>
+            <a href="#home" className="logo">
+                <span className="logo-mark">K.</span>
 
-          {loading ? (
-            <p className="service-message">Loading our services...</p>
-          ) : serviceError ? (
-            <p className="service-message">{serviceError}</p>
-          ) : (
-            <div className="service-grid">
-              {haircut && (
-                <article className="service-card">
-                  <div className="service-image haircut-image">
-                    <span>01</span>
-                  </div>
-                  <div className="service-card-content">
+                <span>
+                    <strong>{shop?.name || "KINGS"}</strong>
+                    <small>BARBER STUDIO</small>
+                </span>
+            </a>
+
+            <nav>
+                <a href="#home">Home</a>
+                <a href="#services">Services</a>
+                <a href="#story">Our Story</a>
+                <a href="#contact">Contact</a>
+            </nav>
+
+            <button
+                className="nav-button"
+                onClick={scrollToBooking}
+            >
+                Book Appointment
+            </button>
+
+        </header>
+
+        <main>
+
+            {/* HERO SECTION */}
+
+            <section className="hero" id="home">
+
+                <div className="hero-content">
+
+                    <p className="eyebrow">
+                        THE ART OF GROOMING
+                    </p>
+
+                    <h1>
+                        YOUR STYLE.
+                        <br />
+                        YOUR <span>STATEMENT.</span>
+                    </h1>
+
+                    <p className="hero-description">
+                        More than a haircut. Experience professional
+                        grooming, attention to detail, and a style
+                        that speaks for itself.
+                    </p>
+
+                    <div className="hero-actions">
+
+                        <button
+                            className="primary-button"
+                            onClick={scrollToBooking}
+                        >
+                            Book Your Visit <span>↗</span>
+                        </button>
+
+                        <a href="#services" className="text-button">
+                            Explore Services ↓
+                        </a>
+
+                    </div>
+
+                    <div className="hero-bottom">
+
+                        <div>
+                            <strong>01</strong>
+                            <span>Professional service</span>
+                        </div>
+
+                        <div>
+                            <strong>02</strong>
+                            <span>Personal attention</span>
+                        </div>
+
+                        <div>
+                            <strong>03</strong>
+                            <span>Easy online booking</span>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div className="hero-image">
+                    <div className="image-overlay"></div>
+
+                    <div className="image-caption">
+                        <span>PRECISION</span>
+                        <span>STYLE</span>
+                        <span>CONFIDENCE</span>
+                    </div>
+                </div>
+
+            </section>
+
+            {/* SERVICES SECTION */}
+
+            <section className="services-section" id="services">
+
+                <div className="section-heading">
+
                     <div>
-                      <h3>Haircut</h3>
-                      <p>Clean lines. Fresh confidence. Your signature look.</p>
+                        <p className="eyebrow">WHAT WE OFFER</p>
+                        <h2>THE SERVICES</h2>
                     </div>
-                    <div className="service-price">
-                      <span>FROM</span>
-                      <strong>500 <small>ETB</small></strong>
-                    </div>
-                  </div>
-                </article>
-              )}
 
-              {beardTrim && (
-                <article className="service-card">
-                  <div className="service-image beard-image">
-                    <span>02</span>
-                  </div>
-                  <div className="service-card-content">
-                    <div>
-                      <h3>Beard Trim</h3>
-                      <p>Defined edges and a perfectly finished beard.</p>
-                    </div>
-                    <div className="service-price">
-                      <span>FROM</span>
-                      <strong>300 <small>ETB</small></strong>
-                    </div>
-                  </div>
-                </article>
-              )}
+                    <p>
+                        Quality grooming with professional
+                        attention to every detail.
+                    </p>
 
-              {!haircut && !beardTrim && (
-                <p className="service-message">
-                  No bookable services are currently available.
+                </div>
+
+                <div className="service-grid">
+
+                    <article className="service-card">
+
+                        <span className="service-number">01</span>
+                        <div className="service-icon">✂</div>
+
+                        <h3>Classic Haircut</h3>
+
+                        <p>
+                            A clean, professional haircut designed
+                            around your personal style.
+                        </p>
+
+                        <div className="service-price">
+                            <span>Adult</span>
+                            <strong>
+                                {haircut?.adultPrice ?? 500} ETB
+                            </strong>
+                        </div>
+
+                        <div className="service-price">
+                            <span>Child</span>
+                            <strong>
+                                {haircut?.childPrice ?? 400} ETB
+                            </strong>
+                        </div>
+
+                        <button onClick={scrollToBooking}>
+                            Book this service ↗
+                        </button>
+
+                    </article>
+
+                    <article className="service-card featured-service">
+
+                        <span className="service-number">02</span>
+                        <div className="service-icon">♧</div>
+
+                        <h3>Beard Trim</h3>
+
+                        <p>
+                            Professional beard shaping and trimming
+                            for a clean, confident look.
+                        </p>
+
+                        <div className="service-price">
+                            <span>Adult</span>
+                            <strong>
+                                {beardTrim?.adultPrice ?? 300} ETB
+                            </strong>
+                        </div>
+
+                        <div className="service-price">
+                            <span>Adult haircut + beard</span>
+                            <strong>700 ETB</strong>
+                        </div>
+
+                        <button onClick={scrollToBooking}>
+                            Book this service ↗
+                        </button>
+
+                    </article>
+
+                    <article className="service-card">
+
+                        <span className="service-number">03</span>
+                        <div className="service-icon">✦</div>
+
+                        <h3>Complete Grooming</h3>
+
+                        <p>
+                            Combine haircut and beard trim for
+                            a complete grooming experience.
+                        </p>
+
+                        <div className="service-price">
+                            <span>Adult combo</span>
+                            <strong>700 ETB</strong>
+                        </div>
+
+                        <button onClick={scrollToBooking}>
+                            Book this service ↗
+                        </button>
+
+                    </article>
+
+                </div>
+
+            </section>
+
+            {/* STORY SECTION */}
+
+            <section className="story-section" id="story">
+
+                <div className="story-image">
+                    <div className="story-image-label">
+                        THE KINGS EXPERIENCE
+                    </div>
+                </div>
+
+                <div className="story-content">
+
+                    <p className="eyebrow">
+                        MORE THAN A BARBERSHOP
+                    </p>
+
+                    <h2>
+                        GOOD STYLE
+                        <br />
+                        STARTS WITH
+                        <br />
+                        <span>THE DETAILS.</span>
+                    </h2>
+
+                    <p>
+                        At {shop?.name || "Kings Barber Shop"},
+                        we believe that looking good starts with
+                        feeling confident. Our goal is to provide
+                        professional grooming in a comfortable
+                        environment.
+                    </p>
+
+                    <button
+                        className="primary-button"
+                        onClick={scrollToBooking}
+                    >
+                        Experience It <span>↗</span>
+                    </button>
+
+                </div>
+
+            </section>
+
+            {/* BOOKING BANNER */}
+
+            <section className="booking-banner">
+
+                <p className="eyebrow">
+                    YOUR NEXT LOOK STARTS HERE
                 </p>
-              )}
+
+                <h2>MAKE TIME FOR YOURSELF.</h2>
+
+                <button
+                    className="primary-button"
+                    onClick={scrollToBooking}
+                >
+                    Reserve Your Appointment <span>↗</span>
+                </button>
+
+            </section>
+
+            {/* BOOKING SECTION */}
+
+            <section id="booking" className="booking-section">
+
+                <div className="section-heading booking-heading">
+
+                    <div>
+                        <p className="eyebrow">
+                            SIMPLE. QUICK. CONVENIENT.
+                        </p>
+
+                        <h2>BOOK YOUR VISIT</h2>
+                    </div>
+
+                    <p>
+                        Choose your services, select a date and time,
+                        and confirm your appointment.
+                    </p>
+
+                </div>
+
+                <Booking
+                    shopId={SHOP_ID}
+                    haircut={haircut}
+                    beardTrim={beardTrim}
+                />
+
+            </section>
+
+        </main>
+
+        {/* FOOTER */}
+
+        <footer id="contact">
+
+            <div className="footer-main">
+
+                <div className="footer-brand">
+
+                    <div className="logo">
+                        <span className="logo-mark">K.</span>
+
+                        <span>
+                            <strong>{shop?.name || "KINGS"}</strong>
+                            <small>BARBER STUDIO</small>
+                        </span>
+                    </div>
+
+                    <p>
+                        Professional grooming. Personal style.
+                        A better experience.
+                    </p>
+
+                </div>
+
+                <div className="footer-info">
+
+                    <h4>CONTACT</h4>
+                    <p>{shop?.phone || "Contact us for information"}</p>
+                    <p>{shop?.address || "Visit our shop"}</p>
+
+                </div>
+
+                <div className="footer-info">
+
+                    <h4>QUICK LINKS</h4>
+
+                    <a href="#home">Home</a>
+                    <a href="#services">Services</a>
+                    <a href="#booking">Book Appointment</a>
+
+                    <button
+                        type="button"
+                        onClick={() => navigate("/barber/login")}
+                        style={{
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            marginTop: "10px",
+                            textAlign: "left",
+                            color: "inherit",
+                            cursor: "pointer",
+                            font: "inherit",
+                        }}
+                    >
+                        Barber Login ↗
+                    </button>
+
+                </div>
+
             </div>
-          )}
 
-          <div className="services-bottom">
-            <span>GOOD STYLE IS NEVER AN ACCIDENT.</span>
-            <button onClick={scrollToBooking}>
-              FIND YOUR TIME <span>↗</span>
-            </button>
-          </div>
-        </section>
+            <div className="footer-bottom">
 
-        <section className="story-section" id="about">
-          <div className="story-image">
-            <div className="story-image-caption">
-              <span>THE KINGS STANDARD</span>
-              <span>01 — CRAFTSMANSHIP</span>
+                <span>
+                    © {new Date().getFullYear()}{" "}
+                    {shop?.name || "Kings Barber Shop"}.
+                </span>
+
+                <span>CRAFTED WITH STYLE.</span>
+
             </div>
-          </div>
 
-          <div className="story-content">
-            <p className="eyebrow dark-eyebrow">OUR PHILOSOPHY</p>
-            <h2>
-              Not just
-              <br />
-              a cut.
-              <br />
-              <em>A statement.</em>
-            </h2>
-            <p>
-              We believe a great haircut does more than change how you look.
-              It changes how you carry yourself. Our focus is simple: quality
-              service, attention to detail, and a look that feels like you.
-            </p>
-            <button className="story-button" onClick={scrollToBooking}>
-              EXPERIENCE KINGS <span>↗</span>
-            </button>
-          </div>
-        </section>
+        </footer>
 
-        <section className="booking-banner">
-          <div>
-            <p className="eyebrow">YOUR CHAIR IS WAITING</p>
-            <h2>
-              Make time
-              <br />
-              for <em>yourself.</em>
-            </h2>
-          </div>
-          <button className="button-primary" onClick={scrollToBooking}>
-            RESERVE YOUR CHAIR <span>↗</span>
-          </button>
-        </section>
-
-        <section className="booking-section" id="booking">
-          <div className="booking-heading">
-            <p className="eyebrow dark-eyebrow">THE NEXT STEP</p>
-            <h2>Book your visit<span>.</span></h2>
-            <p>
-              Choose your services, find a time, and leave the rest to us.
-            </p>
-          </div>
-
-          <Booking shopId={SHOP_ID} services={bookingServices} />
-        </section>
-
-        <section className="contact-section" id="contact">
-          <div>
-            <p className="eyebrow">COME THROUGH</p>
-            <h2>Good things<br />happen in the chair.</h2>
-          </div>
-          <div className="contact-details">
-            <div>
-              <span>LOCATION</span>
-              <p>Bole, Addis Ababa, Ethiopia</p>
-            </div>
-            <div>
-              <span>PHONE</span>
-              <p>Contact us to arrange your visit</p>
-            </div>
-            <button onClick={scrollToBooking}>
-              BOOK AN APPOINTMENT <span>↗</span>
-            </button>
-          </div>
-        </section>
-      </main>
-
-      <footer className="footer">
-        <a className="brand footer-brand" href="#home">
-          <span className="brand-mark">K</span>
-          <span className="brand-name">
-            KINGS<span>BARBER</span>
-          </span>
-        </a>
-        <p>CRAFTED WITH PRECISION. WORN WITH CONFIDENCE.</p>
-        <span>© {new Date().getFullYear()} KINGS BARBER</span>
-      </footer>
-
-      <button className="floating-book" onClick={scrollToBooking}>
-        <span className="floating-dot"></span>
-        BOOK NOW <span>↗</span>
-      </button>
     </div>
-  );
+);
+
+
 }
 
 export default App;
-

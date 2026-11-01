@@ -1,584 +1,599 @@
-import { useEffect, useState } from 'react'
-import './Booking.css'
-import { getAvailability, createAppointment } from './api'
+import { useEffect, useMemo, useState } from "react";
+import {
+    getAvailability,
+    createAppointment,
+} from "./api";
+import "./Booking.css";
 
-function Booking({ shopId, services }) {
-    const haircut = services?.haircut
-    const beardTrim = services?.beardTrim
+function Booking({ shopId, haircut, beardTrim }) {
+    const [adults, setAdults] = useState(1);
+    const [children, setChildren] = useState(0);
 
+    const [adultHaircut, setAdultHaircut] = useState(true);
+    const [adultBeard, setAdultBeard] = useState(false);
+    const [childHaircut, setChildHaircut] = useState(true);
 
-const [customerName, setCustomerName] = useState('')
-const [phone, setPhone] = useState('')
+    const [customerName, setCustomerName] = useState("");
+    const [customerPhone, setCustomerPhone] = useState("");
 
-const [adultCount, setAdultCount] = useState(1)
-const [childCount, setChildCount] = useState(0)
+    const [selectedDate, setSelectedDate] = useState("");
+    const [selectedTime, setSelectedTime] = useState("");
 
-const [adultHaircut, setAdultHaircut] = useState(true)
-const [adultBeardTrim, setAdultBeardTrim] = useState(false)
-const [adultServicesOpen, setAdultServicesOpen] = useState(true)
+    const [availableSlots, setAvailableSlots] = useState([]);
+    const [loadingSlots, setLoadingSlots] = useState(false);
 
-const [selectedDate, setSelectedDate] = useState('')
-const [availableSlots, setAvailableSlots] = useState([])
-const [selectedTime, setSelectedTime] = useState('')
+    const [bookingLoading, setBookingLoading] = useState(false);
+    const [error, setError] = useState("");
+    const [success, setSuccess] = useState(null);
 
-const [loadingSlots, setLoadingSlots] = useState(false)
-const [availabilityError, setAvailabilityError] = useState('')
+    const today = new Date();
+    const minimumDate = [
+        today.getFullYear(),
+        String(today.getMonth() + 1).padStart(2, "0"),
+        String(today.getDate()).padStart(2, "0"),
+    ].join("-");
 
-const [submitting, setSubmitting] = useState(false)
-const [bookingSuccess, setBookingSuccess] = useState('')
-const [bookingError, setBookingError] = useState('')
+    const adultServiceIds = useMemo(() => {
+        const ids = [];
 
-// Minimum appointment date
-const today = new Date()
+        if (adults > 0 && adultHaircut && haircut?.id) {
+            ids.push(Number(haircut.id));
+        }
 
-const minimumDate = [
-    today.getFullYear(),
-    String(today.getMonth() + 1).padStart(2, '0'),
-    String(today.getDate()).padStart(2, '0')
-].join('-')
+        if (adults > 0 && adultBeard && beardTrim?.id) {
+            ids.push(Number(beardTrim.id));
+        }
 
-// Adult service IDs
-const adultServiceIds = []
+        return ids;
+    }, [adults, adultHaircut, adultBeard, haircut, beardTrim]);
 
-if (adultHaircut && haircut?.id) {
-    adultServiceIds.push(haircut.id)
-}
+    const childServiceIds = useMemo(() => {
+        if (children > 0 && childHaircut && haircut?.id) {
+            return [Number(haircut.id)];
+        }
 
-if (adultBeardTrim && beardTrim?.id) {
-    adultServiceIds.push(beardTrim.id)
-}
+        return [];
+    }, [children, childHaircut, haircut]);
 
-// Children can only select Haircut
-const childServiceIds =
-    Number(childCount) > 0 && haircut?.id
-        ? [haircut.id]
-        : []
-
-// Adult pricing
-const adultPrice =
-    adultHaircut && adultBeardTrim
+    const adultPrice = adultHaircut && adultBeard
         ? 700
         : adultHaircut
             ? 500
-            : adultBeardTrim
+            : adultBeard
                 ? 300
-                : 0
+                : 0;
 
-// Child pricing
-const childPrice = 400
+    const childPrice = childHaircut ? 400 : 0;
 
-const totalPrice =
-    adultPrice * Number(adultCount || 0) +
-    childPrice * Number(childCount || 0)
+    const totalPrice =
+        adults * adultPrice + children * childPrice;
 
-// Load available appointment times
-useEffect(() => {
-    let cancelled = false
+    useEffect(() => {
+        setSelectedTime("");
+        setAvailableSlots([]);
 
-    async function loadAvailableSlots() {
-        const adults = Number(adultCount || 0)
-        const children = Number(childCount || 0)
-
-        if (
-            !selectedDate ||
-            adultServiceIds.length === 0 && childServiceIds.length === 0 ||
-            adults + children === 0 ||
-            adults < 0 ||
-            children < 0
-        ) {
-            setAvailableSlots([])
-            setSelectedTime('')
-            setAvailabilityError('')
-            setLoadingSlots(false)
-            return
+        if (!selectedDate) {
+            return;
         }
+
+        if (adults + children === 0) {
+            return;
+        }
+
+        if (adults > 0 && adultServiceIds.length === 0) {
+            return;
+        }
+
+        if (children > 0 && childServiceIds.length === 0) {
+            return;
+        }
+
+        let cancelled = false;
+
+        async function loadSlots() {
+            setLoadingSlots(true);
+            setError("");
+
+            try {
+                const response = await getAvailability(
+                    shopId,
+                    selectedDate,
+                    adultServiceIds,
+                    childServiceIds,
+                    adults,
+                    children
+                );
+
+                if (!cancelled) {
+                    setAvailableSlots(response?.availableSlots || []);
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    setAvailableSlots([]);
+                    setError(err.message);
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoadingSlots(false);
+                }
+            }
+        }
+
+        loadSlots();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [
+        shopId,
+        selectedDate,
+        adults,
+        children,
+        adultServiceIds,
+        childServiceIds,
+    ]);
+
+    async function handleBooking(event) {
+        event.preventDefault();
+
+        setError("");
+        setSuccess(null);
+
+        if (!customerName.trim()) {
+            setError("Please enter your name.");
+            return;
+        }
+
+        if (!customerPhone.trim()) {
+            setError("Please enter your phone number.");
+            return;
+        }
+
+        if (!selectedDate) {
+            setError("Please select an appointment date.");
+            return;
+        }
+
+        if (adults + children === 0) {
+            setError("Please select at least one customer.");
+            return;
+        }
+
+        if (adults > 0 && adultServiceIds.length === 0) {
+            setError("Please select an adult service.");
+            return;
+        }
+
+        if (children > 0 && childServiceIds.length === 0) {
+            setError("Please select a child haircut.");
+            return;
+        }
+
+        if (!selectedTime) {
+            setError("Please select an appointment time.");
+            return;
+        }
+
+        const appointmentData = {
+            customerName: customerName.trim(),
+            customerPhone: customerPhone.trim(),
+            appointmentDate: selectedDate,
+            startTime: selectedTime,
+            adultCount: adults,
+            childCount: children,
+            adultServiceIds,
+            childServiceIds,
+        };
+
+        setBookingLoading(true);
 
         try {
-            setLoadingSlots(true)
-            setAvailabilityError('')
-            setAvailableSlots([])
-            setSelectedTime('')
-
-            const data = await getAvailability(
+            const response = await createAppointment(
                 shopId,
-                selectedDate,
-                adultServiceIds,
-                childServiceIds,
-                adults,
-                children
-            )
+                appointmentData
+            );
 
-            if (!cancelled) {
-                setAvailableSlots(data.availableSlots || [])
-            }
-        } catch (error) {
-            console.error('Availability error:', error)
+            setSuccess(response);
 
-            if (!cancelled) {
-                setAvailabilityError(
-                    error.message ||
-                    'Unable to load available times. Please try again.'
-                )
-            }
+            setCustomerName("");
+            setCustomerPhone("");
+            setSelectedTime("");
+            setSelectedDate("");
+
+            setAdults(1);
+            setChildren(0);
+
+            setAdultHaircut(true);
+            setAdultBeard(false);
+            setChildHaircut(true);
+        } catch (err) {
+            setError(err.message);
         } finally {
-            if (!cancelled) {
-                setLoadingSlots(false)
-            }
+            setBookingLoading(false);
         }
     }
 
-    loadAvailableSlots()
+    return (
+        <div className="booking-container">
+            {success ? (
+                <div className="booking-success">
+                    <div className="success-icon">✓</div>
 
-    return () => {
-        cancelled = true
-    }
-}, [
-    shopId,
-    selectedDate,
-    adultCount,
-    childCount,
-    adultHaircut,
-    adultBeardTrim,
-    haircut?.id,
-    beardTrim?.id
-])
+                    <p className="booking-eyebrow">BOOKING CONFIRMED</p>
 
-// Clear messages when form values change
-function clearMessages() {
-    setBookingError('')
-    setBookingSuccess('')
-}
+                    <h2>Your appointment is reserved.</h2>
 
-// Submit appointment
-async function handleSubmit(event) {
-    event.preventDefault()
+                    <p>
+                        Thank you for choosing Kings Barber Shop.
+                        Your booking has been successfully submitted.
+                    </p>
 
-    setBookingError('')
-    setBookingSuccess('')
-
-    if (!haircut?.id) {
-        setBookingError('Haircut service is currently unavailable.')
-        return
-    }
-
-    if (!customerName.trim() || !phone.trim()) {
-        setBookingError('Please enter your name and phone number.')
-        return
-    }
-
-    const adults = Number(adultCount)
-    const children = Number(childCount)
-
-    if (
-        adultCount === '' ||
-        childCount === '' ||
-        !Number.isInteger(adults) ||
-        !Number.isInteger(children) ||
-        adults < 0 ||
-        children < 0
-    ) {
-        setBookingError('Please enter valid customer counts.')
-        return
-    }
-
-    if (adults + children < 1) {
-        setBookingError('Please enter at least one customer.')
-        return
-    }
-
-    if (adults > 0 && adultServiceIds.length === 0) {
-        setBookingError('Please select at least one adult service.')
-        return
-    }
-
-    if (children > 0 && !haircut?.id) {
-        setBookingError('Children can only receive Haircuts.')
-        return
-    }
-
-    if (!selectedDate || !selectedTime) {
-        setBookingError('Please select an appointment date and time.')
-        return
-    }
-
-    const appointmentData = {
-        customerName: customerName.trim(),
-        customerPhone: phone.trim(),
-        appointmentDate: selectedDate,
-        startTime: selectedTime,
-        adultCount: adults,
-        childCount: children,
-        adultServiceIds,
-        childServiceIds
-    }
-
-    try {
-        setSubmitting(true)
-
-        const result = await createAppointment(
-            shopId,
-            appointmentData
-        )
-
-        setBookingSuccess(
-            `Your appointment has been booked successfully! Appointment ID: ${result.id}`
-        )
-
-        // Clear the form after successful booking
-        setCustomerName('')
-        setPhone('')
-        setAdultCount(1)
-        setChildCount(0)
-        setAdultHaircut(true)
-        setAdultBeardTrim(false)
-        setSelectedDate('')
-        setSelectedTime('')
-        setAvailableSlots([])
-
-    } catch (error) {
-        console.error('Booking error:', error)
-        setBookingError(error.message)
-    } finally {
-        setSubmitting(false)
-    }
-}
-
-return (
-    <section className="booking-form-section" id="booking">
-        <div className="booking-form-container">
-
-            <p className="section-label">RESERVE YOUR VISIT</p>
-
-            <h2>
-                BOOK YOUR <span>APPOINTMENT</span>
-            </h2>
-
-            <p className="booking-intro">
-                Choose your services, customer counts, date and time.
-            </p>
-
-            <form onSubmit={handleSubmit} className="booking-form">
-
-                <div className="form-group">
-                    <label>Your Name</label>
-                    <input
-                        type="text"
-                        value={customerName}
-                        onChange={(event) => {
-                            setCustomerName(event.target.value)
-                            clearMessages()
-                        }}
-                        placeholder="Enter your full name"
-                        maxLength={100}
-                        required
-                    />
-                </div>
-
-                <div className="form-group">
-                    <label>Phone Number</label>
-                    <input
-                        type="tel"
-                        value={phone}
-                        onChange={(event) => {
-                            setPhone(event.target.value)
-                            clearMessages()
-                        }}
-                        placeholder="Enter your phone number"
-                        required
-                    />
-                </div>
-
-                <div className="service-dropdown">
-
-                    <button
-                        type="button"
-                        className="service-dropdown-header"
-                        onClick={() =>
-                            setAdultServicesOpen(!adultServicesOpen)
-                        }
-                        aria-expanded={adultServicesOpen}
-                    >
+                    <div className="success-details">
                         <div>
-                            <h3>Choose Adult Services</h3>
-                            <p>Select one or both services</p>
+                            <span>Appointment ID</span>
+                            <strong>#{success.id}</strong>
                         </div>
 
-                        <span
-                            className={
-                                adultServicesOpen
-                                    ? 'dropdown-arrow rotated'
-                                    : 'dropdown-arrow'
-                            }
-                        >
-                            ⌄
-                        </span>
+                        <div>
+                            <span>Date</span>
+                            <strong>{success.appointmentDate || selectedDate}</strong>
+                        </div>
+
+                        <div>
+                            <span>Start time</span>
+                            <strong>{success.startTime || selectedTime}</strong>
+                        </div>
+
+                        <div>
+                            <span>Total</span>
+                            <strong>
+                                {success.totalPrice ?? totalPrice} ETB
+                            </strong>
+                        </div>
+                    </div>
+
+                    <button
+                        className="booking-submit"
+                        onClick={() => {
+                            setSuccess(null);
+                            setAvailableSlots([]);
+                        }}
+                    >
+                        Make Another Booking
                     </button>
+                </div>
+            ) : (
+                <form onSubmit={handleBooking}>
+                    <div className="booking-layout">
+                        <div className="booking-form-main">
+                            <div className="booking-step">
+                                <span className="step-number">01</span>
+                                <div>
+                                    <h3>Who is coming?</h3>
+                                    <p>Select the number of adults and children.</p>
+                                </div>
+                            </div>
 
-                    {adultServicesOpen && (
-                        <div className="service-dropdown-list">
+                            <div className="people-grid">
+                                <div className="people-card">
+                                    <div>
+                                        <strong>Adults</strong>
+                                        <small>13 years and above</small>
+                                    </div>
 
-                            <label className="modern-service-option">
-                                <input
-                                    type="checkbox"
-                                    checked={adultHaircut}
-                                    onChange={(event) => {
-                                        setAdultHaircut(
-                                            event.target.checked
-                                        )
-                                        setSelectedTime('')
-                                        clearMessages()
-                                    }}
-                                />
+                                    <div className="counter">
+                                        <button
+                                            type="button"
+                                            onClick={() => setAdults(Math.max(0, adults - 1))}
+                                            aria-label="Remove adult"
+                                        >
+                                            −
+                                        </button>
 
-                                <span className="service-option-icon">
-                                    ✂
-                                </span>
+                                        <strong>{adults}</strong>
 
-                                <span className="modern-service-details">
-                                    <strong>Haircut</strong>
-                                    <small>Professional haircut</small>
-                                </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setAdults(Math.min(10, adults + 1))}
+                                            aria-label="Add adult"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                </div>
 
-                                <strong className="modern-service-price">
-                                    500 ETB
-                                </strong>
-                            </label>
+                                <div className="people-card">
+                                    <div>
+                                        <strong>Children</strong>
+                                        <small>12 years and below</small>
+                                    </div>
 
-                            <label className="modern-service-option">
-                                <input
-                                    type="checkbox"
-                                    checked={adultBeardTrim}
-                                    onChange={(event) => {
-                                        setAdultBeardTrim(
-                                            event.target.checked
-                                        )
-                                        setSelectedTime('')
-                                        clearMessages()
-                                    }}
-                                />
+                                    <div className="counter">
+                                        <button
+                                            type="button"
+                                            onClick={() => setChildren(Math.max(0, children - 1))}
+                                            aria-label="Remove child"
+                                        >
+                                            −
+                                        </button>
 
-                                <span className="service-option-icon">
-                                    ✦
-                                </span>
+                                        <strong>{children}</strong>
 
-                                <span className="modern-service-details">
-                                    <strong>Beard Trim</strong>
-                                    <small>
-                                        Professional beard grooming
-                                    </small>
-                                </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setChildren(Math.min(10, children + 1))}
+                                            aria-label="Add child"
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
 
-                                <strong className="modern-service-price">
-                                    300 ETB
-                                </strong>
-                            </label>
+                            <div className="booking-step">
+                                <span className="step-number">02</span>
+                                <div>
+                                    <h3>Choose your services</h3>
+                                    <p>Choose services separately for adults and children.</p>
+                                </div>
+                            </div>
 
-                            {adultHaircut && adultBeardTrim && (
-                                <div className="combo-discount">
-                                    <span>✦ SPECIAL COMBO OFFER</span>
-                                    <strong>
-                                        Haircut + Beard Trim = 700 ETB
-                                    </strong>
+                            {adults > 0 && (
+                                <div className="service-selection">
+                                    <h4>ADULT SERVICES</h4>
+
+                                    <label className="booking-option">
+                                        <input
+                                            type="checkbox"
+                                            checked={adultHaircut}
+                                            onChange={(event) =>
+                                                setAdultHaircut(event.target.checked)
+                                            }
+                                        />
+
+                                        <span>
+                      <strong>Haircut</strong>
+                      <small>Professional haircut</small>
+                    </span>
+
+                                        <b>500 ETB</b>
+                                    </label>
+
+                                    <label className="booking-option">
+                                        <input
+                                            type="checkbox"
+                                            checked={adultBeard}
+                                            onChange={(event) =>
+                                                setAdultBeard(event.target.checked)
+                                            }
+                                        />
+
+                                        <span>
+                      <strong>Beard Trim</strong>
+                      <small>Professional beard shaping</small>
+                    </span>
+
+                                        <b>300 ETB</b>
+                                    </label>
+
+                                    {adultHaircut && adultBeard && (
+                                        <div className="combo-message">
+                                            Special combo price: 700 ETB per adult.
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
-                        </div>
-                    )}
+                            {children > 0 && (
+                                <div className="service-selection">
+                                    <h4>CHILD SERVICES</h4>
 
-                </div>
+                                    <label className="booking-option">
+                                        <input
+                                            type="checkbox"
+                                            checked={childHaircut}
+                                            onChange={(event) =>
+                                                setChildHaircut(event.target.checked)
+                                            }
+                                        />
 
-                <div className="form-row">
+                                        <span>
+                      <strong>Child Haircut</strong>
+                      <small>Haircut for children</small>
+                    </span>
 
-                    <div className="form-group">
-                        <label>Adults</label>
-                        <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={adultCount}
-                            onChange={(event) => {
-                                setAdultCount(
-                                    event.target.value === ''
-                                        ? ''
-                                        : Number(event.target.value)
-                                )
-                                setSelectedTime('')
-                                clearMessages()
-                            }}
-                            required
-                        />
-                    </div>
-
-                    <div className="form-group">
-                        <label>Children</label>
-                        <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={childCount}
-                            onChange={(event) => {
-                                setChildCount(
-                                    event.target.value === ''
-                                        ? ''
-                                        : Number(event.target.value)
-                                )
-                                setSelectedTime('')
-                                clearMessages()
-                            }}
-                        />
-                    </div>
-
-                </div>
-
-                {Number(childCount) > 0 && (
-                    <div className="children-service-card">
-
-                        <span className="children-icon">✂</span>
-
-                        <div>
-                            <strong>Children's Haircut</strong>
-                            <p>
-                                Haircut only · 400 ETB per child
-                            </p>
-                            <small>
-                                Beard Trim is not available for children.
-                            </small>
-                        </div>
-
-                    </div>
-                )}
-
-                <div className="price-summary">
-
-                    <div className="price-summary-heading">
-                        <span>YOUR BOOKING</span>
-                        <span>PRICE SUMMARY</span>
-                    </div>
-
-                    <div className="price-summary-row">
-                        <span>Adult services</span>
-                        <strong>
-                            {adultPrice * Number(adultCount || 0)} ETB
-                        </strong>
-                    </div>
-
-                    <div className="price-summary-row">
-                        <span>Children's Haircuts</span>
-                        <strong>
-                            {childPrice * Number(childCount || 0)} ETB
-                        </strong>
-                    </div>
-
-                    <div className="price-summary-total">
-                        <span>Total Price</span>
-                        <strong>
-                            {totalPrice.toLocaleString()} ETB
-                        </strong>
-                    </div>
-
-                </div>
-
-                <div className="form-group">
-                    <label>Appointment Date</label>
-
-                    <input
-                        type="date"
-                        min={minimumDate}
-                        value={selectedDate}
-                        onChange={(event) => {
-                            setSelectedDate(event.target.value)
-                            setSelectedTime('')
-                            clearMessages()
-                        }}
-                        required
-                    />
-                </div>
-
-                {selectedDate && (
-                    <div className="time-selection">
-
-                        <label>Choose Your Appointment Time</label>
-
-                        {loadingSlots && (
-                            <p className="availability-message">
-                                Checking available times...
-                            </p>
-                        )}
-
-                        {!loadingSlots && availabilityError && (
-                            <p className="availability-error">
-                                {availabilityError}
-                            </p>
-                        )}
-
-                        {!loadingSlots &&
-                            !availabilityError &&
-                            availableSlots.length === 0 && (
-                                <p className="availability-message">
-                                    No available appointments for this date.
-                                </p>
+                                        <b>400 ETB</b>
+                                    </label>
+                                </div>
                             )}
 
-                        {!loadingSlots && availableSlots.length > 0 && (
-                            <div className="time-slots">
-
-                                {availableSlots.map((slot) => (
-                                    <button
-                                        key={slot}
-                                        type="button"
-                                        className={
-                                            selectedTime === slot
-                                                ? 'time-slot selected'
-                                                : 'time-slot'
-                                        }
-                                        onClick={() => {
-                                            setSelectedTime(slot)
-                                            clearMessages()
-                                        }}
-                                    >
-                                        {slot}
-                                    </button>
-                                ))}
-
+                            <div className="booking-step">
+                                <span className="step-number">03</span>
+                                <div>
+                                    <h3>Select date and time</h3>
+                                    <p>Choose an available appointment slot.</p>
+                                </div>
                             </div>
-                        )}
 
+                            <div className="date-field">
+                                <label htmlFor="appointment-date">
+                                    APPOINTMENT DATE
+                                </label>
+
+                                <input
+                                    id="appointment-date"
+                                    type="date"
+                                    min={minimumDate}
+                                    value={selectedDate}
+                                    onChange={(event) => {
+                                        setSelectedDate(event.target.value);
+                                        setSelectedTime("");
+                                    }}
+                                />
+                            </div>
+
+                            {selectedDate && (
+                                <div className="time-selection">
+                                    <h4>AVAILABLE TIMES</h4>
+
+                                    {loadingSlots ? (
+                                        <p className="slots-message">
+                                            Checking available times...
+                                        </p>
+                                    ) : availableSlots.length > 0 ? (
+                                        <div className="time-grid">
+                                            {availableSlots.map((time) => (
+                                                <button
+                                                    type="button"
+                                                    key={time}
+                                                    className={
+                                                        selectedTime === time
+                                                            ? "time-slot selected"
+                                                            : "time-slot"
+                                                    }
+                                                    onClick={() => setSelectedTime(time)}
+                                                >
+                                                    {time}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="slots-message">
+                                            No available times found. Try another date
+                                            or change your selected services.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="booking-step">
+                                <span className="step-number">04</span>
+                                <div>
+                                    <h3>Your contact information</h3>
+                                    <p>Enter your details to complete the booking.</p>
+                                </div>
+                            </div>
+
+                            <div className="customer-fields">
+                                <div className="date-field">
+                                    <label htmlFor="customer-name">FULL NAME</label>
+
+                                    <input
+                                        id="customer-name"
+                                        type="text"
+                                        placeholder="Enter your full name"
+                                        value={customerName}
+                                        onChange={(event) =>
+                                            setCustomerName(event.target.value)
+                                        }
+                                        maxLength={100}
+                                    />
+                                </div>
+
+                                <div className="date-field">
+                                    <label htmlFor="customer-phone">PHONE NUMBER</label>
+
+                                    <input
+                                        id="customer-phone"
+                                        type="tel"
+                                        placeholder="09XXXXXXXX"
+                                        value={customerPhone}
+                                        onChange={(event) =>
+                                            setCustomerPhone(event.target.value)
+                                        }
+                                        maxLength={20}
+                                    />
+                                </div>
+                            </div>
+
+                            {error && (
+                                <div className="booking-error" role="alert">
+                                    {error}
+                                </div>
+                            )}
+
+                            <button
+                                className="booking-submit"
+                                type="submit"
+                                disabled={bookingLoading}
+                            >
+                                {bookingLoading
+                                    ? "Submitting booking..."
+                                    : "Confirm Appointment →"}
+                            </button>
+                        </div>
+
+                        <aside className="booking-summary">
+                            <p className="booking-eyebrow">YOUR APPOINTMENT</p>
+
+                            <h3>Booking Summary</h3>
+
+                            <div className="summary-line">
+                                <span>Adults</span>
+                                <strong>{adults}</strong>
+                            </div>
+
+                            <div className="summary-line">
+                                <span>Children</span>
+                                <strong>{children}</strong>
+                            </div>
+
+                            <div className="summary-divider"></div>
+
+                            {adults > 0 && (
+                                <>
+                                    <p className="summary-label">ADULT SERVICES</p>
+
+                                    <div className="summary-line">
+                                        <span>Haircut</span>
+                                        <strong>{adultHaircut ? "Yes" : "No"}</strong>
+                                    </div>
+
+                                    <div className="summary-line">
+                                        <span>Beard Trim</span>
+                                        <strong>{adultBeard ? "Yes" : "No"}</strong>
+                                    </div>
+                                </>
+                            )}
+
+                            {children > 0 && (
+                                <>
+                                    <p className="summary-label">CHILD SERVICES</p>
+
+                                    <div className="summary-line">
+                                        <span>Haircut</span>
+                                        <strong>{childHaircut ? "Yes" : "No"}</strong>
+                                    </div>
+                                </>
+                            )}
+
+                            <div className="summary-divider"></div>
+
+                            <div className="summary-line">
+                                <span>Date</span>
+                                <strong>{selectedDate || "Not selected"}</strong>
+                            </div>
+
+                            <div className="summary-line">
+                                <span>Time</span>
+                                <strong>{selectedTime || "Not selected"}</strong>
+                            </div>
+
+                            <div className="summary-total">
+                                <span>ESTIMATED TOTAL</span>
+                                <strong>{totalPrice.toLocaleString()} ETB</strong>
+                            </div>
+
+                            <p className="summary-note">
+                                Final appointment pricing is calculated and
+                                verified by the booking system.
+                            </p>
+                        </aside>
                     </div>
-                )}
-
-                {bookingSuccess && (
-                    <div className="booking-success">
-                        {bookingSuccess}
-                    </div>
-                )}
-
-                {bookingError && (
-                    <div className="booking-error">
-                        {bookingError}
-                    </div>
-                )}
-
-                <button
-                    type="submit"
-                    className="service-book-button"
-                    disabled={
-                        loadingSlots ||
-                        submitting ||
-                        !selectedTime
-                    }
-                >
-                    {submitting
-                        ? 'BOOKING...'
-                        : 'CONFIRM APPOINTMENT →'}
-                </button>
-
-            </form>
-
+                </form>
+            )}
         </div>
-    </section>
-)
-
-
+    );
 }
 
-export default Booking
+export default Booking;

@@ -28,7 +28,7 @@ public class GlobalExceptionHandler {
             LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
 
-    // 1. BAD REQUEST: HTTP 400
+    //  BAD REQUEST: HTTP 400
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleBadRequest(
@@ -40,7 +40,7 @@ public class GlobalExceptionHandler {
     }
 
 
-    // 2. CONFLICT: HTTP 409
+    // CONFLICT: HTTP 409
 
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, String>> handleConflict(
@@ -52,7 +52,7 @@ public class GlobalExceptionHandler {
     }
 
 
-    // 3. DTO VALIDATION ERRORS: HTTP 400
+    // DTO VALIDATION ERRORS: HTTP 400
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidation(
@@ -71,7 +71,7 @@ public class GlobalExceptionHandler {
         );
     }
 
-    // 4. CONSTRAINT VALIDATION ERRORS: HTTP 400
+    //  CONSTRAINT VALIDATION ERRORS: HTTP 400
 
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<Map<String, String>> handleConstraintViolation(
@@ -88,7 +88,7 @@ public class GlobalExceptionHandler {
         );
     }
 
-    // 5. INVALID LOGIN CREDENTIALS: HTTP 401
+    // INVALID LOGIN CREDENTIALS: HTTP 401
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<Map<String, String>> handleBadCredentials(
@@ -99,7 +99,7 @@ public class GlobalExceptionHandler {
         );
     }
 
-    // 6. ACCESS DENIED: HTTP 403
+    //  ACCESS DENIED: HTTP 403
 
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -111,7 +111,7 @@ public class GlobalExceptionHandler {
         );
     }
 
-    // 7. DATABASE CONSTRAINT VIOLATIONS: HTTP 409
+    //  DATABASE CONSTRAINT VIOLATIONS: HTTP 409
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> handleDataIntegrityViolation(
@@ -131,7 +131,7 @@ public class GlobalExceptionHandler {
         );
     }
 
-    // 8. UNEXPECTED ERRORS: HTTP 500
+    //  UNEXPECTED ERRORS: HTTP 500
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleUnexpectedException(
@@ -154,7 +154,7 @@ public class GlobalExceptionHandler {
     }
 
 
-    // 9. SAFE ERROR MESSAGE
+    //  SAFE ERROR MESSAGE
 
     private String safeMessage(Exception exception) {
         String message = exception.getMessage();

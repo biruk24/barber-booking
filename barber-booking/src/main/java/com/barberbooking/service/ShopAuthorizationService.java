@@ -28,7 +28,7 @@ public class ShopAuthorizationService {
             String authenticatedEmail
     ) {
 
-        // Step 1: Find the authenticated user.
+        //  Find the authenticated user.
         User user = userRepository.findByEmail(authenticatedEmail)
                 .orElseThrow(() ->
                         new AccessDeniedException(
@@ -36,14 +36,14 @@ public class ShopAuthorizationService {
                         )
                 );
 
-        // Step 2: Only barbers can manage shops.
+        //  Only barbers can manage shops.
         if (!"BARBER".equalsIgnoreCase(user.getRole())) {
             throw new AccessDeniedException(
                     "Only barbers can manage shops"
             );
         }
 
-        // Step 3: Find the requested shop.
+        //  Find the requested shop.
         BarberShop shop = barberShopRepository.findById(shopId)
                 .orElseThrow(() ->
                         new IllegalArgumentException(
@@ -51,21 +51,21 @@ public class ShopAuthorizationService {
                         )
                 );
 
-        // Step 4: Verify that the shop has an owner.
+        //  Verify that the shop has an owner.
         if (shop.getUser() == null || shop.getUser().getId() == null) {
             throw new IllegalStateException(
                     "This shop does not have a valid owner"
             );
         }
 
-        // Step 5: Compare the authenticated user's ID with the owner's ID.
+        //  Compare the authenticated user's ID with the owner's ID.
         if (!shop.getUser().getId().equals(user.getId())) {
             throw new AccessDeniedException(
                     "You are not allowed to manage this shop"
             );
         }
 
-        // Step 6: Return the authorized shop.
+        //  Return the authorized shop.
         return shop;
     }
 }

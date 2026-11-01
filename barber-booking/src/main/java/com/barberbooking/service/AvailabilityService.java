@@ -40,9 +40,9 @@ public class AvailabilityService {
         this.appointmentRepository = appointmentRepository;
     }
 
-// =========================================================
+
 // GET AVAILABLE APPOINTMENT TIMES
-// =========================================================
+
 
     public AvailabilityResponse getAvailability(
             Long shopId,
@@ -67,9 +67,9 @@ public class AvailabilityService {
                         new IllegalArgumentException(
                                 "Shop ID " + shopId + " not found"));
 
-        // -----------------------------------------------------
+
         // Validate customer counts
-        // -----------------------------------------------------
+
 
         int adults = adultCount == null ? 0 : adultCount;
         int children = childCount == null ? 0 : childCount;
@@ -84,9 +84,9 @@ public class AvailabilityService {
                     "At least one adult or child is required");
         }
 
-        // -----------------------------------------------------
+
         // Normalize service selections
-        // -----------------------------------------------------
+
 
         List<Long> adultIds = adultServiceIds == null
                 ? List.of()
@@ -129,9 +129,9 @@ public class AvailabilityService {
                     "A child service cannot be selected more than once");
         }
 
-        // -----------------------------------------------------
+
         // Load all unique services
-        // -----------------------------------------------------
+
 
         Set<Long> allIds = new HashSet<>();
         allIds.addAll(adultIds);
@@ -163,10 +163,10 @@ public class AvailabilityService {
             }
         }
 
-        // -----------------------------------------------------
+
         // Calculate adult duration
         // Adults can select Haircut and Beard Trim.
-        // -----------------------------------------------------
+
 
         int adultDurationPerPerson = 0;
 
@@ -187,10 +187,9 @@ public class AvailabilityService {
             adultDurationPerPerson += validateDuration(service);
         }
 
-        // -----------------------------------------------------
+
         // Calculate child duration
         // Children can select Haircut only.
-        // -----------------------------------------------------
 
         int childDurationPerPerson = 0;
 
@@ -206,9 +205,9 @@ public class AvailabilityService {
             childDurationPerPerson += validateDuration(service);
         }
 
-        // -----------------------------------------------------
+
         // Calculate total appointment duration
-        // -----------------------------------------------------
+
 
         long calculatedDuration =
                 ((long) adultDurationPerPerson * adults)
@@ -223,9 +222,9 @@ public class AvailabilityService {
 
         int totalDuration = (int) calculatedDuration;
 
-        // -----------------------------------------------------
+
         // Get working hours
-        // -----------------------------------------------------
+
 
         DayOfWeek dayOfWeek = date.getDayOfWeek();
 
@@ -262,9 +261,9 @@ public class AvailabilityService {
                     "The shop's configured working hours are invalid");
         }
 
-        // -----------------------------------------------------
+
         // Get existing appointments
-        // -----------------------------------------------------
+
 
         List<Appointment> appointments =
                 appointmentRepository
@@ -274,9 +273,9 @@ public class AvailabilityService {
                                 "CANCELLED"
                         );
 
-        // -----------------------------------------------------
+
         // Generate available slots
-        // -----------------------------------------------------
+
 
         List<String> availableSlots = new ArrayList<>();
 
@@ -328,9 +327,9 @@ public class AvailabilityService {
         );
     }
 
-// =========================================================
+
 // VALIDATE SERVICE IDS
-// =========================================================
+
 
     private void validateServiceIds(List<Long> serviceIds) {
 
@@ -342,9 +341,9 @@ public class AvailabilityService {
         }
     }
 
-// =========================================================
+
 // NORMALIZE SERVICE NAME
-// =========================================================
+
 
     private String normalizeName(String name) {
 
@@ -353,9 +352,9 @@ public class AvailabilityService {
                 : name.trim().toLowerCase();
     }
 
-// =========================================================
+
 // VALIDATE SERVICE DURATION
-// =========================================================
+
 
     private int validateDuration(Service service) {
 

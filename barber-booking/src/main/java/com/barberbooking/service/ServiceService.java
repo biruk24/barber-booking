@@ -77,9 +77,8 @@ public class ServiceService {
                 .toList();
     }
 
-    /**
-     * Update a service belonging to the specified shop.
-     */
+     // update a service belonging to the specified shop.
+
     public ServiceResponse updateService(
             Long shopId,
             Long serviceId,
@@ -106,9 +105,9 @@ public class ServiceService {
         return mapToResponse(updatedService);
     }
 
-    /**
-     * Delete a service belonging to the specified shop.
-     */
+
+     //Delete a service belonging to the specified shop.
+
     public void deleteService(
             Long shopId,
             Long serviceId
@@ -125,9 +124,9 @@ public class ServiceService {
         serviceRepository.delete(service);
     }
 
-    /**
-     * Convert a Service entity into a ServiceResponse DTO.
-     */
+
+     //Convert a Service entity into a ServiceResponse DTO.
+
     private ServiceResponse mapToResponse(Service service) {
 
         return new ServiceResponse(
