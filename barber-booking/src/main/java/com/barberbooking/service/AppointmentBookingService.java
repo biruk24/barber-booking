@@ -1,5 +1,4 @@
-
-        package com.barberbooking.service;
+package com.barberbooking.service;
 
 import com.barberbooking.dto.AppointmentRequest;
 import com.barberbooking.dto.AppointmentResponse;
@@ -24,8 +23,10 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @org.springframework.stereotype.Service
@@ -57,9 +58,7 @@ public class AppointmentBookingService {
         this.workingHourRepository = workingHourRepository;
     }
 
-
-    // BOOK AN APPOINTMENT
-
+    // 1. BOOK AN APPOINTMENT
 
     @Transactional
     public AppointmentResponse book(
@@ -117,8 +116,6 @@ public class AppointmentBookingService {
                     "Customer phone is required");
         }
 
-        // Get separate adult and child service selections.
-
         List<Long> adultServiceIds =
                 request.getAdultServiceIds() == null
                         ? new ArrayList<>()
@@ -164,8 +161,6 @@ public class AppointmentBookingService {
                     "A child service cannot be selected more than once");
         }
 
-        // Load all unique services.
-
         Set<Long> allServiceIds = new HashSet<>();
         allServiceIds.addAll(adultServiceIds);
         allServiceIds.addAll(childServiceIds);
@@ -180,16 +175,11 @@ public class AppointmentBookingService {
                     "One or more selected services do not exist");
         }
 
-        // Build service lookup map.
-
-        java.util.Map<Long, Service> serviceMap =
-                new java.util.HashMap<>();
+        Map<Long, Service> serviceMap = new HashMap<>();
 
         for (Service service : services) {
             serviceMap.put(service.getId(), service);
         }
-
-        // Verify every service belongs to the requested shop.
 
         for (Service service : services) {
 
@@ -207,8 +197,6 @@ public class AppointmentBookingService {
             }
         }
 
-        // Validate adult services.
-
         boolean adultHasHaircut = false;
         boolean adultHasBeardTrim = false;
 
@@ -217,7 +205,6 @@ public class AppointmentBookingService {
         for (Long id : adultServiceIds) {
 
             Service service = serviceMap.get(id);
-
             String serviceName = normalizeName(service.getName());
 
             if ("haircut".equals(serviceName)) {
@@ -233,14 +220,11 @@ public class AppointmentBookingService {
             adultDurationPerPerson += validateDuration(service);
         }
 
-        // Validate child services. Children can select Haircut only.
-
         int childDurationPerPerson = 0;
 
         for (Long id : childServiceIds) {
 
             Service service = serviceMap.get(id);
-
             String serviceName = normalizeName(service.getName());
 
             if (!"haircut".equals(serviceName)) {
@@ -251,8 +235,6 @@ public class AppointmentBookingService {
             childDurationPerPerson += validateDuration(service);
         }
 
-        // Calculate total appointment duration.
-
         long durationMinutes =
                 ((long) adultDurationPerPerson * adults)
                         + ((long) childDurationPerPerson * children);
@@ -262,8 +244,6 @@ public class AppointmentBookingService {
             throw new IllegalArgumentException(
                     "Invalid appointment duration");
         }
-
-        // Calculate adult price.
 
         BigDecimal totalPrice = BigDecimal.ZERO;
 
@@ -300,8 +280,6 @@ public class AppointmentBookingService {
                             BigDecimal.valueOf(adults)));
         }
 
-        // Calculate child price.
-
         if (children > 0) {
 
             BigDecimal childPricePerPerson = BigDecimal.ZERO;
@@ -326,8 +304,6 @@ public class AppointmentBookingService {
                             BigDecimal.valueOf(children)));
         }
 
-        // Validate start time.
-
         LocalTime startTime = request.getStartTime();
 
         if (startTime == null) {
@@ -348,8 +324,6 @@ public class AppointmentBookingService {
             throw new IllegalArgumentException(
                     "Appointment start time must be in the future");
         }
-
-        // Validate shop working hours.
 
         DayOfWeek dayOfWeek = date.getDayOfWeek();
 
@@ -395,8 +369,6 @@ public class AppointmentBookingService {
                     "Choose a start time offered by the availability endpoint");
         }
 
-        // Prevent overlapping appointments.
-
         List<Appointment> existingAppointments =
                 appointmentRepository
                         .findByBarberShopIdAndAppointmentDateAndStatusNot(
@@ -416,8 +388,6 @@ public class AppointmentBookingService {
                                 + "Please choose another slot.");
             }
         }
-
-        // Create appointment.
 
         Appointment appointment = new Appointment();
 
@@ -439,8 +409,6 @@ public class AppointmentBookingService {
 
         Appointment saved = appointmentRepository.save(appointment);
 
-        // Save adult service relationships.
-
         for (Long id : adultServiceIds) {
             saveAppointmentService(
                     saved,
@@ -448,8 +416,6 @@ public class AppointmentBookingService {
                     ADULT
             );
         }
-
-        // Save child service relationships.
 
         for (Long id : childServiceIds) {
             saveAppointmentService(
@@ -462,9 +428,7 @@ public class AppointmentBookingService {
         return toResponse(saved);
     }
 
-
-    // VALIDATE SERVICE IDS
-
+    // 2. VALIDATE SERVICE IDS
 
     private void validateServiceIds(List<Long> serviceIds) {
 
@@ -475,9 +439,7 @@ public class AppointmentBookingService {
         }
     }
 
-
-    // NORMALIZE SERVICE NAME
-
+    // 3. NORMALIZE SERVICE NAME
 
     private String normalizeName(String name) {
 
@@ -488,9 +450,7 @@ public class AppointmentBookingService {
         return name.trim().toLowerCase();
     }
 
-
-    // VALIDATE SERVICE DURATION
-
+    // 4. VALIDATE SERVICE DURATION
 
     private int validateDuration(Service service) {
 
@@ -505,9 +465,7 @@ public class AppointmentBookingService {
         return duration;
     }
 
-
-    // SAVE APPOINTMENT-SERVICE RELATIONSHIP
-
+    // 5. SAVE APPOINTMENT-SERVICE RELATIONSHIP
 
     private void saveAppointmentService(
             Appointment appointment,
@@ -529,9 +487,7 @@ public class AppointmentBookingService {
         appointmentServiceRepository.save(link);
     }
 
-
-    // 2. GET ALL APPOINTMENTS FOR A SHOP
-
+    // 6. GET ALL APPOINTMENTS FOR A SHOP
 
     public List<AppointmentResponse> getAppointments(Long shopId) {
 
@@ -549,9 +505,49 @@ public class AppointmentBookingService {
                 .toList();
     }
 
+    // 7. GET FILTERED APPOINTMENTS FOR A SHOP
 
-    // 3. CANCEL AN APPOINTMENT
+    public List<AppointmentResponse> getFilteredAppointments(
+            Long shopId,
+            LocalDate date,
+            String status
+    ) {
 
+        barberShopRepository.findById(shopId)
+                .orElseThrow(() ->
+                        new IllegalArgumentException("Shop not found"));
+
+        if (status != null && !status.isBlank()) {
+
+            status = status.trim().toUpperCase();
+
+            Set<String> allowedStatuses = Set.of(
+                    "PENDING",
+                    "CONFIRMED",
+                    "COMPLETED",
+                    "CANCELLED"
+            );
+
+            if (!allowedStatuses.contains(status)) {
+                throw new IllegalArgumentException(
+                        "Invalid appointment status");
+            }
+
+        } else {
+            status = null;
+        }
+
+        return appointmentRepository.findFilteredAppointments(
+                        shopId,
+                        status,
+                        date
+                )
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    // 8. CANCEL AN APPOINTMENT
 
     @Transactional
     public AppointmentResponse cancel(
@@ -581,9 +577,7 @@ public class AppointmentBookingService {
         return toResponse(saved);
     }
 
-
-    // 4. GET ONE APPOINTMENT
-
+    // 9. GET ONE APPOINTMENT
 
     public AppointmentResponse getAppointment(
             Long shopId,
@@ -597,9 +591,7 @@ public class AppointmentBookingService {
         return toResponse(appointment);
     }
 
-
-    // 5. GET APPOINTMENTS BY CUSTOMER PHONE
-
+    // 10. GET APPOINTMENTS BY CUSTOMER PHONE
 
     public List<AppointmentResponse> getCustomerAppointments(
             Long shopId,
@@ -624,9 +616,7 @@ public class AppointmentBookingService {
                 .toList();
     }
 
-
-    // 6. CONFIRM AN APPOINTMENT
-
+    // 11. CONFIRM AN APPOINTMENT
 
     @Transactional
     public AppointmentResponse confirm(
@@ -651,9 +641,7 @@ public class AppointmentBookingService {
         return toResponse(saved);
     }
 
-
-    // 7. COMPLETE AN APPOINTMENT
-
+    // 12. COMPLETE AN APPOINTMENT
 
     @Transactional
     public AppointmentResponse complete(
@@ -678,9 +666,7 @@ public class AppointmentBookingService {
         return toResponse(saved);
     }
 
-
-    // 8. FIND AN APPOINTMENT BELONGING TO A SHOP
-
+    // 13. FIND AN APPOINTMENT BELONGING TO A SHOP
 
     private Appointment getAppointmentEntity(
             Long shopId,
@@ -694,9 +680,7 @@ public class AppointmentBookingService {
                                 "Appointment not found"));
     }
 
-
-    // 9. CONVERT APPOINTMENT ENTITY TO RESPONSE DTO
-
+    // 14. CONVERT APPOINTMENT ENTITY TO RESPONSE DTO
 
     private AppointmentResponse toResponse(Appointment appointment) {
 
@@ -735,4 +719,3 @@ public class AppointmentBookingService {
         );
     }
 }
-

@@ -6,9 +6,14 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public class LoginResponse {
-    private Long  id;
+
+
+    private Long id;
     private String name;
     private String email;
     private String role;
+    private Long shopId;
     private String token;
+
+
 }

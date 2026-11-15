@@ -1,5 +1,4 @@
-
-        package com.barberbooking.controller;
+package com.barberbooking.controller;
 
 import com.barberbooking.dto.ShopRequest;
 import com.barberbooking.dto.ShopResponse;
@@ -29,30 +28,56 @@ public class ShopController {
             Authentication authentication,
             @Valid @RequestBody ShopRequest request
     ) {
+
         if (authentication == null || !authentication.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        String email = authentication.getName();
+        ShopResponse response = shopService.createShop(
+                authentication.getName(),
+                request
+        );
 
-        ShopResponse shopResponse = shopService.createShop(email, request);
-
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(shopResponse);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping
     public ResponseEntity<List<ShopResponse>> getAllShops() {
-        List<ShopResponse> shops = shopService.getAllShops();
-        return ResponseEntity.ok(shops);
+        return ResponseEntity.ok(shopService.getAllShops());
     }
 
     @GetMapping("/{shopId}")
     public ResponseEntity<ShopResponse> getShop(
             @PathVariable Long shopId
     ) {
-        ShopResponse response = shopService.getShop(shopId);
+        return ResponseEntity.ok(shopService.getShop(shopId));
+    }
+
+    // Public endpoint: find a barber shop using its unique URL slug.
+    @GetMapping("/slug/{slug}")
+    public ResponseEntity<ShopResponse> getShopBySlug(
+            @PathVariable String slug
+    ) {
+        return ResponseEntity.ok(shopService.getShopBySlug(slug));
+    }
+
+    @PutMapping("/{shopId}")
+    public ResponseEntity<ShopResponse> updateShop(
+            @PathVariable Long shopId,
+            Authentication authentication,
+            @Valid @RequestBody ShopRequest request
+    ) {
+
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        ShopResponse response = shopService.updateShop(
+                shopId,
+                authentication.getName(),
+                request
+        );
+
         return ResponseEntity.ok(response);
     }
 }

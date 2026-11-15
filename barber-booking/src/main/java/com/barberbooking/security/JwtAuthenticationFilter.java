@@ -28,6 +28,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         this.jwtService = jwtService;
     }
 
+    // Skip JWT validation for public authentication endpoints.
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+
+        String path = request.getServletPath();
+
+        return path.equals("/api/auth/login")
+                || path.equals("/api/auth/register")
+                || "OPTIONS".equalsIgnoreCase(request.getMethod());
+    }
+
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
@@ -37,8 +49,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String authHeader = request.getHeader("Authorization");
 
-        // No token so Spring Security decide whether the endpoint
-        // requires authentication.
+        // No token: let Spring Security decide.
+
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
@@ -47,6 +59,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = authHeader.substring(7).trim();
 
         try {
+
             Claims claims = jwtService.extractAllClaims(token);
 
             String email = claims.getSubject();
@@ -65,17 +78,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
+            String authority = role.startsWith("ROLE_")
+                    ? role
+                    : "ROLE_" + role;
+
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(
                             email,
                             null,
-                            List.of(
-                                    new SimpleGrantedAuthority(
-                                            role.startsWith("ROLE_")
-                                                    ? role
-                                                    : "ROLE_" + role
-                                    )
-                            )
+                            List.of(new SimpleGrantedAuthority(authority))
                     );
 
             SecurityContextHolder.getContext()

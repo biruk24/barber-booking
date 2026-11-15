@@ -1,12 +1,19 @@
 package com.barberbooking.model;
-import jakarta.persistence.*; import lombok.Getter; import lombok.NoArgsConstructor; import lombok.Setter;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
 import java.time.LocalDateTime;
-@Entity @Table(name = "barber_shops")
+
+@Entity
+@Table(name = "barber_shops")
 @Getter
 @Setter
 @NoArgsConstructor
-
 public class BarberShop {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -17,6 +24,9 @@ public class BarberShop {
 
     @Column(nullable = false, length = 150)
     private String name;
+
+    @Column(unique = true, length = 180)
+    private String slug;
 
     @Column(columnDefinition = "TEXT")
     private String description;
@@ -33,3 +43,4 @@ public class BarberShop {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 }
+

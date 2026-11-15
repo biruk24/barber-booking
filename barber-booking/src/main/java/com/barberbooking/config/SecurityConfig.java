@@ -1,4 +1,5 @@
-package com.barberbooking.config;
+
+        package com.barberbooking.config;
 
 import com.barberbooking.security.JwtAuthenticationFilter;
 
@@ -18,7 +19,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 public class SecurityConfig {
-
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
@@ -83,14 +83,24 @@ public class SecurityConfig {
 
                         // Public registration and login
                         .requestMatchers(
-                                "/api/test/register",
-                                "/api/test/login"
+                                "/api/auth/register",
+                                "/api/auth/login"
                         ).permitAll()
+
+                        // ADMIN ONLY
+                        .requestMatchers("/api/admin/**")
+                        .hasRole("ADMIN")
 
                         // Public list of all shops
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/shops"
+                        ).permitAll()
+
+                        // Public shop lookup by slug
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/shops/slug/**"
                         ).permitAll()
 
                         // Public working hours
@@ -123,10 +133,10 @@ public class SecurityConfig {
                                 "/api/shops/*/appointments"
                         ).permitAll()
 
-                        // Permit Spring's error endpoint
+                        // Permit Spring error endpoint
                         .requestMatchers("/error").permitAll()
 
-                        // All other requests require authentication
+                        // Everything else requires authentication
                         .anyRequest().authenticated()
                 )
 
@@ -140,6 +150,5 @@ public class SecurityConfig {
 
         return http.build();
     }
-
-
 }
+

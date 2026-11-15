@@ -133,17 +133,19 @@ CREATE TABLE appointments ( id BIGINT AUTO_INCREMENT PRIMARY KEY,
                                     )
 );
 -- ============================================ -- 6. APPOINTMENT SERVICES -- ============================================
-CREATE TABLE appointment_services ( appointment_id BIGINT NOT NULL,
-                                    service_id BIGINT NOT NULL,
+CREATE TABLE appointment_services (
+                                      appointment_id BIGINT NOT NULL,
+                                      service_id BIGINT NOT NULL,
+                                      customer_type VARCHAR(10) NOT NULL DEFAULT 'LEGACY',
 
-                                    PRIMARY KEY (appointment_id, service_id),
+                                      PRIMARY KEY (appointment_id, service_id, customer_type) NONCLUSTERED,
 
-                                    CONSTRAINT fk_appointment_services_appointment
-                                        FOREIGN KEY (appointment_id)
-                                            REFERENCES appointments(id)
-                                            ON DELETE CASCADE,
+                                      CONSTRAINT fk_appointment_services_appointment
+                                          FOREIGN KEY (appointment_id)
+                                              REFERENCES appointments(id)
+                                              ON DELETE CASCADE,
 
-                                    CONSTRAINT fk_appointment_services_service
-                                        FOREIGN KEY (service_id)
-                                            REFERENCES services(id)
+                                      CONSTRAINT fk_appointment_services_service
+                                          FOREIGN KEY (service_id)
+                                              REFERENCES services(id)
 );

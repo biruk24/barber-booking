@@ -1,5 +1,4 @@
-
-        package com.barberbooking.controller;
+package com.barberbooking.controller;
 
 import com.barberbooking.dto.AppointmentRequest;
 import com.barberbooking.dto.AppointmentResponse;
@@ -13,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -30,6 +30,7 @@ public class AppointmentController {
         this.authorizationService = authorizationService;
     }
 
+    // 1. BOOK AN APPOINTMENT
 
     @PostMapping
     public ResponseEntity<AppointmentResponse> book(
@@ -44,20 +45,28 @@ public class AppointmentController {
                 .body(response);
     }
 
+    // 2. GET APPOINTMENTS WITH OPTIONAL FILTERS
 
     @GetMapping
     public ResponseEntity<List<AppointmentResponse>> getAppointments(
             @PathVariable Long shopId,
+            @RequestParam(required = false) LocalDate date,
+            @RequestParam(required = false) String status,
             Authentication authentication
     ) {
         authorizeShopOwner(shopId, authentication);
 
         List<AppointmentResponse> appointments =
-                bookingService.getAppointments(shopId);
+                bookingService.getFilteredAppointments(
+                        shopId,
+                        date,
+                        status
+                );
 
         return ResponseEntity.ok(appointments);
     }
 
+    // 3. GET ONE APPOINTMENT
 
     @GetMapping("/{appointmentId}")
     public ResponseEntity<AppointmentResponse> getAppointment(
@@ -73,6 +82,7 @@ public class AppointmentController {
         return ResponseEntity.ok(appointment);
     }
 
+    // 4. CANCEL AN APPOINTMENT
 
     @PatchMapping("/{appointmentId}/cancel")
     public ResponseEntity<AppointmentResponse> cancel(
@@ -88,6 +98,7 @@ public class AppointmentController {
         return ResponseEntity.ok(appointment);
     }
 
+    // 5. CONFIRM AN APPOINTMENT
 
     @PatchMapping("/{appointmentId}/confirm")
     public ResponseEntity<AppointmentResponse> confirm(
@@ -103,6 +114,8 @@ public class AppointmentController {
         return ResponseEntity.ok(appointment);
     }
 
+    // 6. COMPLETE AN APPOINTMENT
+
     @PatchMapping("/{appointmentId}/complete")
     public ResponseEntity<AppointmentResponse> complete(
             @PathVariable Long shopId,
@@ -117,6 +130,7 @@ public class AppointmentController {
         return ResponseEntity.ok(appointment);
     }
 
+    // 7. GET CUSTOMER APPOINTMENTS BY PHONE
 
     @GetMapping("/customer")
     public ResponseEntity<List<AppointmentResponse>> getCustomerAppointments(
@@ -132,6 +146,7 @@ public class AppointmentController {
         return ResponseEntity.ok(appointments);
     }
 
+    // 8. VERIFY SHOP OWNERSHIP
 
     private void authorizeShopOwner(
             Long shopId,
