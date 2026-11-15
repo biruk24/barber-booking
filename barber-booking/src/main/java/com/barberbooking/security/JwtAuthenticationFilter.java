@@ -1,7 +1,6 @@
 package com.barberbooking.security;
 
 import com.barberbooking.service.JwtService;
-
 import io.jsonwebtoken.Claims;
 
 import jakarta.servlet.FilterChain;
@@ -28,16 +27,33 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         this.jwtService = jwtService;
     }
 
-    // Skip JWT validation for public authentication endpoints.
-
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
 
         String path = request.getServletPath();
+        String method = request.getMethod();
 
-        return path.equals("/api/auth/login")
-                || path.equals("/api/auth/register")
-                || "OPTIONS".equalsIgnoreCase(request.getMethod());
+        // CORS preflight
+        if ("OPTIONS".equalsIgnoreCase(method)) {
+            return true;
+        }
+
+        // Public authentication
+        if (path.equals("/api/auth/login")
+                || path.equals("/api/auth/register")) {
+            return true;
+        }
+
+        // Public shop GET endpoints
+        if ("GET".equalsIgnoreCase(method)
+                && (path.equals("/api/shops")
+                || path.startsWith("/api/shops/"))) {
+            return true;
+        }
+
+        // Public customer appointment booking
+        return "POST".equalsIgnoreCase(method)
+                && path.matches("/api/shops/[^/]+/appointments");
     }
 
     @Override
@@ -49,8 +65,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         String authHeader = request.getHeader("Authorization");
 
-        // No token: let Spring Security decide.
-
+        // No token: Spring Security decides access.
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
@@ -59,7 +74,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = authHeader.substring(7).trim();
 
         try {
-
             Claims claims = jwtService.extractAllClaims(token);
 
             String email = claims.getSubject();
@@ -67,14 +81,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (email == null || email.isBlank()
                     || role == null || role.isBlank()) {
-
                 SecurityContextHolder.clearContext();
-
-                response.sendError(
-                        HttpServletResponse.SC_UNAUTHORIZED,
-                        "Invalid authentication token"
-                );
-
+                response.sendError(401, "Invalid authentication token");
                 return;
             }
 
@@ -93,14 +101,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     .setAuthentication(authentication);
 
         } catch (Exception exception) {
-
             SecurityContextHolder.clearContext();
-
-            response.sendError(
-                    HttpServletResponse.SC_UNAUTHORIZED,
-                    "Invalid or expired authentication token"
-            );
-
+            response.sendError(401, "Invalid or expired authentication token");
             return;
         }
 
